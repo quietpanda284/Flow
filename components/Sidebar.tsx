@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { Settings, Home, Timer } from 'lucide-react';
+import { Settings, Home, Timer, Zap, Map } from 'lucide-react';
 
 interface SidebarProps {
   activePage: string;
@@ -9,6 +10,8 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
   const items = [
     { name: 'Home', icon: Home },
+    { name: 'Plan', icon: Map },
+    { name: 'Trends', icon: Zap },
     { name: 'Focus', icon: Timer },
   ];
 

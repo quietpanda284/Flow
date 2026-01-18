@@ -1,108 +1,159 @@
-import { TimeBlock, CategoryStat } from './types';
+
+import { TimeBlock, Category } from './types';
 import { 
   Briefcase, 
   Coffee, 
   MessageSquare, 
   Zap, 
   Layout, 
-  Calendar 
+  Calendar,
+  Map
 } from 'lucide-react';
 
-export const MOCK_TIME_BLOCKS: TimeBlock[] = [
+// 1. Define the Master Categories
+export const MASTER_CATEGORIES: Category[] = [
+  { id: 'cat_1', name: 'Development', type: 'focus' },
+  { id: 'cat_2', name: 'Collaboration', type: 'meeting' },
+  { id: 'cat_3', name: 'Communication', type: 'communication' },
+  { id: 'cat_4', name: 'Breaks', type: 'break' },
+  { id: 'cat_5', name: 'Admin', type: 'other' },
+];
+
+// 2. The Plan (Intent)
+export const MOCK_PLANNED_BLOCKS: TimeBlock[] = [
+    {
+        id: 'p1',
+        title: 'Morning Deep Work',
+        app: 'VS Code',
+        startTime: '09:00',
+        endTime: '11:00',
+        durationMinutes: 120,
+        type: 'focus',
+        categoryId: 'cat_1',
+        description: 'Planned: Auth Middleware Implementation'
+    },
+    {
+        id: 'p2',
+        title: 'Team Standup',
+        app: 'Zoom',
+        startTime: '11:00',
+        endTime: '11:30',
+        durationMinutes: 30,
+        type: 'meeting',
+        categoryId: 'cat_2',
+        description: 'Daily Sync'
+    },
+    {
+        id: 'p3',
+        title: 'Email & Comms',
+        app: 'Slack',
+        startTime: '11:30',
+        endTime: '12:00',
+        durationMinutes: 30,
+        type: 'communication',
+        categoryId: 'cat_3'
+    },
+    {
+        id: 'p4',
+        title: 'Lunch',
+        app: 'Offline',
+        startTime: '12:00',
+        endTime: '13:00',
+        durationMinutes: 60,
+        type: 'break',
+        categoryId: 'cat_4'
+    },
+    {
+        id: 'p5',
+        title: 'Project Review',
+        app: 'GitHub',
+        startTime: '13:00',
+        endTime: '14:30',
+        durationMinutes: 90,
+        type: 'focus',
+        categoryId: 'cat_1'
+    },
+    {
+        id: 'p6',
+        title: 'Client Meeting',
+        app: 'Zoom',
+        startTime: '15:00',
+        endTime: '16:00',
+        durationMinutes: 60,
+        type: 'meeting',
+        categoryId: 'cat_2'
+    }
+];
+
+// 3. The Execution (Actual) - Overlaps and Gaps
+export const MOCK_ACTUAL_BLOCKS: TimeBlock[] = [
   {
     id: '1',
-    title: 'Daily Standup',
-    app: 'Zoom',
-    startTime: '09:00',
-    endTime: '09:30',
-    durationMinutes: 30,
-    type: 'meeting',
-    description: 'Team sync for sprint updates.'
-  },
-  {
-    id: '2',
-    title: 'Email Triage',
-    app: 'Gmail',
-    startTime: '09:30',
-    endTime: '10:00',
-    durationMinutes: 30,
-    type: 'communication',
-    description: 'Clearing inbox.'
-  },
-  {
-    id: '3',
     title: 'Deep Work: Backend API',
     app: 'VS Code',
-    startTime: '10:00',
-    endTime: '12:00',
-    durationMinutes: 120,
+    startTime: '09:15', // Started late
+    endTime: '11:00',
+    durationMinutes: 105,
     type: 'focus',
+    categoryId: 'cat_1',
     description: 'Implementing auth middleware.'
   },
   {
+    id: '2',
+    title: 'Daily Standup',
+    app: 'Zoom',
+    startTime: '11:00',
+    endTime: '11:35', // Overran
+    durationMinutes: 35,
+    type: 'meeting',
+    categoryId: 'cat_2',
+    description: 'Team sync.'
+  },
+  {
+    id: '3',
+    title: 'Urgent Bug Fix',
+    app: 'VS Code',
+    startTime: '11:40',
+    endTime: '12:10', // Ate into lunch
+    durationMinutes: 30,
+    type: 'focus', // Unplanned focus
+    categoryId: 'cat_1'
+  },
+  {
     id: '4',
-    title: 'Lunch Break',
+    title: 'Lunch',
     app: 'Offline',
-    startTime: '12:00',
-    endTime: '12:45',
-    durationMinutes: 45,
+    startTime: '12:10',
+    endTime: '13:00',
+    durationMinutes: 50,
     type: 'break',
-    description: 'AFK'
+    categoryId: 'cat_4'
   },
   {
     id: '5',
     title: 'Code Review',
     app: 'GitHub',
-    startTime: '12:45',
-    endTime: '13:30',
-    durationMinutes: 45,
+    startTime: '13:00',
+    endTime: '14:00', // Stopped early
+    durationMinutes: 60,
     type: 'focus',
-    description: 'Reviewing PRs from team.'
+    categoryId: 'cat_1'
   },
+  // Gap here: 14:00 - 15:00 (Planned focus/break missing)
   {
     id: '6',
-    title: 'Product Sync',
-    app: 'Google Meet',
-    startTime: '13:30',
-    endTime: '14:30',
-    durationMinutes: 60,
-    type: 'meeting'
-  },
-  {
-    id: '7',
-    title: 'Frontend Refactor',
-    app: 'VS Code',
-    startTime: '14:30',
+    title: 'Client Meeting',
+    app: 'Zoom',
+    startTime: '15:00',
     endTime: '16:00',
-    durationMinutes: 90,
-    type: 'focus'
-  },
-  {
-    id: '8',
-    title: 'Slack Catch-up',
-    app: 'Slack',
-    startTime: '16:00',
-    endTime: '16:30',
-    durationMinutes: 30,
-    type: 'communication'
-  },
-   {
-    id: '9',
-    title: 'Wrap up',
-    app: 'Notion',
-    startTime: '16:30',
-    endTime: '17:00',
-    durationMinutes: 30,
-    type: 'other'
+    durationMinutes: 60,
+    type: 'meeting',
+    categoryId: 'cat_2'
   }
 ];
 
-export const MOCK_CATEGORIES: CategoryStat[] = [
-  { id: '1', label: 'Focus', percentage: 65, type: 'focus', timeSpent: '4h 15m' },
-  { id: '2', label: 'Meetings', percentage: 20, type: 'meeting', timeSpent: '1h 30m' },
-  { id: '3', label: 'Communication', percentage: 10, type: 'communication', timeSpent: '45m' },
-  { id: '4', label: 'Breaks', percentage: 5, type: 'break', timeSpent: '45m' },
-];
+// Alias for backward compatibility if needed, though we will update usages
+export const MOCK_TIME_BLOCKS = MOCK_ACTUAL_BLOCKS;
 
 export const CATEGORY_COLORS = {
   focus: 'bg-accent-focus',
@@ -125,5 +176,5 @@ export const NAV_ITEMS = [
   { label: 'Timeline', icon: Calendar },
   { label: 'Trends', icon: Zap },
   { label: 'Projects', icon: Briefcase },
-  { label: 'Settings', icon: Coffee }, // Using Coffee as a placeholder or generic icon if Settings cog isn't desired
+  { label: 'Settings', icon: Coffee }, 
 ];

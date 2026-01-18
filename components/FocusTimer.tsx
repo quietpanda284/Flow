@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check } from 'lucide-react';
-import { TimerState } from '../types';
+import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2 } from 'lucide-react';
+import { TimerState, CategoryType } from '../types';
+import { getCategories, addCategory, deleteCategory } from '../services/api';
 
 type TimerMode = 'FOCUS' | 'SHORT_BREAK' | 'LONG_BREAK';
 
@@ -15,14 +16,28 @@ export const FocusTimer: React.FC = () => {
   const [mode, setMode] = useState<TimerMode>('FOCUS');
   const [timeLeft, setTimeLeft] = useState(MODES.FOCUS.minutes * 60);
   
-  // Task Management State
-  const [tasks, setTasks] = useState<string[]>(['Frontend Refactor', 'Backend API', 'Email Triage', 'Code Review']);
-  const [activeProject, setActiveProject] = useState(tasks[0]);
+  // Category Management State
+  const [categories, setCategories] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isAddingTask, setIsAddingTask] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryTitle, setNewCategoryTitle] = useState('');
+  const [newCategoryType, setNewCategoryType] = useState<CategoryType>('focus');
   
   const timerRef = useRef<number | null>(null);
+
+  // Initial Data Fetch
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      const fetchedCats = await getCategories();
+      setCategories(fetchedCats);
+      if (fetchedCats.length > 0) setActiveCategory(fetchedCats[0]);
+      setIsLoading(false);
+    };
+    loadData();
+  }, []);
 
   useEffect(() => {
     if (timerState === TimerState.RUNNING) {
@@ -62,21 +77,39 @@ export const FocusTimer: React.FC = () => {
     setTimeLeft(MODES[mode].minutes * 60);
   };
 
-  const handleAddTask = () => {
-    if (newTaskTitle.trim()) {
-        const newTask = newTaskTitle.trim();
-        setTasks([...tasks, newTask]);
-        setActiveProject(newTask);
-        setNewTaskTitle('');
-        setIsAddingTask(false);
+  const handleAddCategory = async () => {
+    if (newCategoryTitle.trim()) {
+        const titleToAdd = newCategoryTitle.trim();
+        
+        // Optimistic Update
+        const prevCategories = [...categories];
+        setCategories([...categories, titleToAdd]);
+        setActiveCategory(titleToAdd);
+        setNewCategoryTitle('');
+        setIsAddingCategory(false);
+
+        try {
+          await addCategory(titleToAdd, newCategoryType);
+        } catch (error) {
+          // Revert if failed (though our service handles mock fallback)
+          setCategories(prevCategories);
+        }
     }
   };
 
-  const handleDeleteTask = (taskToDelete: string) => {
-    const updatedTasks = tasks.filter(t => t !== taskToDelete);
-    setTasks(updatedTasks);
-    if (activeProject === taskToDelete) {
-        setActiveProject(updatedTasks.length > 0 ? updatedTasks[0] : '');
+  const handleDeleteCategory = async (catToDelete: string) => {
+    const prevCategories = [...categories];
+    const updatedCats = categories.filter(t => t !== catToDelete);
+    
+    setCategories(updatedCats);
+    if (activeCategory === catToDelete) {
+        setActiveCategory(updatedCats.length > 0 ? updatedCats[0] : '');
+    }
+
+    try {
+      await deleteCategory(catToDelete);
+    } catch (error) {
+      setCategories(prevCategories);
     }
   };
 
@@ -111,57 +144,90 @@ export const FocusTimer: React.FC = () => {
         </div>
       </div>
 
-      {/* Project Selector - Only visible in Focus Mode */}
+      {/* Category Selector - Only visible in Focus Mode */}
       <div className={`relative mb-8 z-30 transition-all duration-300 ${mode === 'FOCUS' ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none h-0 mb-0'}`}>
-        <label className="text-xs text-gray-500 mb-1 block uppercase tracking-wider text-center">Current Task</label>
+        <label className="text-xs text-gray-500 mb-1 block uppercase tracking-wider text-center">Current Category</label>
         
-        {isAddingTask ? (
-             <div className="flex gap-2 max-w-sm mx-auto">
-                <input 
-                   autoFocus
-                   value={newTaskTitle}
-                   onChange={(e) => setNewTaskTitle(e.target.value)}
-                   className="flex-1 bg-[#2a2d36] border border-[#3f434e] rounded-lg px-3 py-2 text-white outline-none focus:border-accent-focus text-sm"
-                   placeholder="New task name..."
-                   onKeyDown={(e) => e.key === 'Enter' && handleAddTask()}
-                />
-                <button onClick={handleAddTask} className="p-2 bg-accent-focus text-black rounded-lg hover:brightness-110 transition-all"><Check size={18} /></button>
-                <button onClick={() => setIsAddingTask(false)} className="p-2 bg-[#2a2d36] text-gray-400 rounded-lg hover:text-white transition-colors"><X size={18} /></button>
+        {isAddingCategory ? (
+             <div className="flex flex-col gap-3 max-w-sm mx-auto w-full animate-in fade-in slide-in-from-top-2">
+                <div className="flex gap-2">
+                    <input 
+                        autoFocus
+                        value={newCategoryTitle}
+                        onChange={(e) => setNewCategoryTitle(e.target.value)}
+                        className="flex-1 bg-[#2a2d36] border border-[#3f434e] rounded-lg px-3 py-2 text-white outline-none focus:border-accent-focus text-sm placeholder:text-gray-600"
+                        placeholder="Category name..."
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
+                    />
+                    <button onClick={handleAddCategory} className="p-2 bg-accent-focus text-black rounded-lg hover:brightness-110 transition-all"><Check size={18} /></button>
+                    <button onClick={() => setIsAddingCategory(false)} className="p-2 bg-[#2a2d36] text-gray-400 rounded-lg hover:text-white transition-colors"><X size={18} /></button>
+                </div>
+                
+                {/* Type Selection */}
+                <div className="flex gap-2 justify-center">
+                    {(['focus', 'meeting', 'communication'] as const).map((t) => (
+                        <button
+                            key={t}
+                            onClick={() => setNewCategoryType(t)}
+                            className={`
+                                px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-all
+                                ${newCategoryType === t 
+                                    ? (t === 'focus' ? 'bg-accent-focus text-black border-accent-focus' 
+                                       : t === 'meeting' ? 'bg-accent-meeting text-white border-accent-meeting'
+                                       : 'bg-purple-400 text-white border-purple-400')
+                                    : 'bg-[#1a1d24] border-[#3f434e] text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                                }
+                            `}
+                        >
+                            {t}
+                        </button>
+                    ))}
+                </div>
              </div>
         ) : (
             <div className="flex gap-2 max-w-sm mx-auto">
                 <div className="relative flex-1">
                     <button 
                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        className="w-full bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg p-3 flex justify-between items-center text-white transition-colors group"
+                        disabled={isLoading}
+                        className="w-full bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg p-3 flex justify-between items-center text-white transition-colors group disabled:opacity-70"
                     >
-                        <span className="font-medium truncate">{activeProject || "Select a task"}</span>
-                        <ChevronDown size={16} className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                         {isLoading ? (
+                             <div className="flex items-center gap-2">
+                                <Loader2 className="animate-spin" size={16} />
+                                <span className="font-medium text-gray-400">Loading categories...</span>
+                             </div>
+                         ) : (
+                             <>
+                                <span className="font-medium truncate">{activeCategory || "Select a category"}</span>
+                                <ChevronDown size={16} className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                             </>
+                         )}
                     </button>
                     
                     {/* Dropdown Menu */}
-                    {isDropdownOpen && (
+                    {isDropdownOpen && !isLoading && (
                         <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
                             <div className="max-h-48 overflow-y-auto custom-scrollbar">
-                                {tasks.map(task => (
-                                    <div key={task} className="flex items-center justify-between p-3 hover:bg-[#2a2d36] group/item transition-colors">
+                                {categories.map(cat => (
+                                    <div key={cat} className="flex items-center justify-between p-3 hover:bg-[#2a2d36] group/item transition-colors">
                                         <button 
-                                            onClick={() => { setActiveProject(task); setIsDropdownOpen(false); }}
+                                            onClick={() => { setActiveCategory(cat); setIsDropdownOpen(false); }}
                                             className="flex-1 text-left text-sm text-gray-200 truncate"
                                         >
-                                            {task}
+                                            {cat}
                                         </button>
                                         <button 
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteTask(task); }}
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat); }}
                                             className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors opacity-0 group-hover/item:opacity-100"
-                                            title="Delete task"
+                                            title="Delete category"
                                         >
                                             <Trash2 size={14} />
                                         </button>
                                     </div>
                                 ))}
-                                {tasks.length === 0 && (
-                                    <div className="p-4 text-center text-xs text-gray-500">No tasks created</div>
+                                {categories.length === 0 && (
+                                    <div className="p-4 text-center text-xs text-gray-500">No categories created</div>
                                 )}
                             </div>
                         </div>
@@ -169,9 +235,9 @@ export const FocusTimer: React.FC = () => {
                 </div>
                 
                 <button 
-                    onClick={() => { setIsAddingTask(true); setIsDropdownOpen(false); setNewTaskTitle(''); }}
+                    onClick={() => { setIsAddingCategory(true); setIsDropdownOpen(false); setNewCategoryTitle(''); setNewCategoryType('focus'); }}
                     className="bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg px-3 flex items-center justify-center text-gray-400 hover:text-accent-focus transition-colors"
-                    title="Add new task"
+                    title="Add new category"
                 >
                     <Plus size={20} />
                 </button>

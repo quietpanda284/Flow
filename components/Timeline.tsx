@@ -38,11 +38,11 @@ export const Timeline: React.FC = () => {
         <div className="flex gap-4 text-xs font-medium">
              <div className="flex items-center gap-2">
                  <div className="w-2 h-2 rounded-full bg-accent-focus"></div>
-                 <span className="text-gray-400">Focus</span>
+                 <span className="text-gray-400">Development</span>
              </div>
              <div className="flex items-center gap-2">
                  <div className="w-2 h-2 rounded-full bg-accent-meeting"></div>
-                 <span className="text-gray-400">Meeting</span>
+                 <span className="text-gray-400">Collaboration</span>
              </div>
              <div className="flex items-center gap-2">
                  <div className="w-2 h-2 rounded-full bg-accent-break"></div>

@@ -1,60 +1,105 @@
+
 import React from 'react';
-import { Clock } from 'lucide-react';
+import { Target, Activity } from 'lucide-react';
 
 interface MetricsBarProps {
-  totalWorkTime: string;
+  plannedMinutes: number;
+  actualMinutes: number;
+  adherenceRate: number; // 0-100
 }
 
-export const MetricsBar: React.FC<MetricsBarProps> = ({ totalWorkTime }) => {
+const formatDuration = (minutes: number) => {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h}h ${m}m`;
+};
+
+export const MetricsBar: React.FC<MetricsBarProps> = ({ plannedMinutes, actualMinutes, adherenceRate }) => {
+  const ratio = plannedMinutes > 0 ? (actualMinutes / plannedMinutes) * 100 : 0;
+  
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-      {/* Total Work Time */}
-      <div className="bg-card border border-border rounded-xl p-5 flex flex-col justify-center relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Clock size={64} className="text-accent-meeting" />
+      {/* Commitment Ratio (Work Volume) */}
+      <div className="bg-card border border-border rounded-xl p-5 flex flex-col justify-center relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Target size={64} className="text-accent-focus" />
         </div>
-        <h3 className="text-gray-400 text-sm font-medium mb-2">Total Work Time</h3>
-        <div className="text-5xl font-mono text-white tracking-tight">
-          {totalWorkTime}
+        
+        <div className="flex justify-between items-end mb-2">
+            <div>
+                <h3 className="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-1">Commitment Ratio</h3>
+                <div className="flex items-baseline gap-2">
+                    <span className="text-4xl font-mono text-white tracking-tight font-bold">
+                        {Math.round(ratio)}%
+                    </span>
+                    <span className="text-sm text-gray-500 font-light italic">
+                         of {formatDuration(plannedMinutes)} planned
+                    </span>
+                </div>
+            </div>
+            <div className="text-right">
+                 <div className="text-sm text-accent-focus font-medium">{formatDuration(actualMinutes)}</div>
+                 <div className="text-[10px] text-gray-600 uppercase">Actual</div>
+            </div>
         </div>
-        <div className="mt-3 w-full bg-[#2a2d36] h-1.5 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-accent-meeting to-blue-600 w-[75%]" />
+
+        {/* Progress Bar with Target Marker */}
+        <div className="mt-2 w-full bg-[#2a2d36] h-2 rounded-full overflow-hidden relative">
+            {/* The Actual Bar */}
+            <div 
+                className="h-full bg-gradient-to-r from-accent-focus to-emerald-600 transition-all duration-1000 ease-out" 
+                style={{ width: `${Math.min(ratio, 100)}%` }}
+            />
+            {/* The Target Line (always at 100% of the bar width if we treat bar as Plan, but here we treat bar as max(Plan, Actual). 
+                Let's simplify: Bar is 0-100% of Plan. If over 100, it stays full. 
+            */}
         </div>
-        <p className="text-xs text-gray-500 mt-2">Target: 8h 00m</p>
       </div>
 
-      {/* Focus vs Break Ratio */}
-      <div className="bg-card border border-border rounded-xl p-5 flex flex-col justify-center">
-        <h3 className="text-gray-400 text-sm font-medium mb-4">Ratio Analysis</h3>
-        
-        <div className="space-y-4">
+      {/* Adherence Rate (Schedule Fidelity) */}
+      <div className="bg-card border border-border rounded-xl p-5 flex flex-col justify-center relative overflow-hidden group">
+         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Activity size={64} className="text-purple-400" />
+        </div>
+
+        <div className="flex justify-between items-center h-full">
             <div>
-                <div className="flex justify-between text-xs mb-1">
-                    <span className="text-white">Focus</span>
-                    <span className="text-accent-focus">4h 12m</span>
-                </div>
-                <div className="w-full bg-[#2a2d36] h-2 rounded-full overflow-hidden">
-                    <div className="h-full bg-accent-focus w-[70%]" />
-                </div>
+                 <h3 className="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-2">Adherence Rate</h3>
+                 <div className="flex items-center gap-3">
+                    <div className="relative w-16 h-16">
+                        <svg className="w-full h-full transform -rotate-90">
+                            <circle cx="32" cy="32" r="28" stroke="#2a2d36" strokeWidth="6" fill="transparent" />
+                            <circle 
+                                cx="32" cy="32" r="28" 
+                                stroke={adherenceRate > 80 ? '#00FF94' : adherenceRate > 50 ? '#FFB347' : '#EF4444'} 
+                                strokeWidth="6" 
+                                fill="transparent" 
+                                strokeDasharray={2 * Math.PI * 28}
+                                strokeDashoffset={2 * Math.PI * 28 * (1 - adherenceRate / 100)}
+                                className="transition-all duration-1000 ease-out"
+                            />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+                            {Math.round(adherenceRate)}%
+                        </div>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm text-gray-300">Schedule Fidelity</span>
+                        <span className="text-xs text-gray-500">
+                            {adherenceRate > 80 ? 'High Discipline' : 'deviating from plan'}
+                        </span>
+                    </div>
+                 </div>
             </div>
             
-            <div>
-                <div className="flex justify-between text-xs mb-1">
-                    <span className="text-white">Meetings</span>
-                    <span className="text-accent-meeting">1h 45m</span>
+            <div className="space-y-2 text-right">
+                <div className="text-xs">
+                    <span className="text-gray-500 block">Missed Blocks</span>
+                    <span className="text-white font-mono">1.5h</span>
                 </div>
-                <div className="w-full bg-[#2a2d36] h-2 rounded-full overflow-hidden">
-                    <div className="h-full bg-accent-meeting w-[25%]" />
-                </div>
-            </div>
-
-             <div>
-                <div className="flex justify-between text-xs mb-1">
-                    <span className="text-white">Breaks</span>
-                    <span className="text-accent-break">30m</span>
-                </div>
-                <div className="w-full bg-[#2a2d36] h-2 rounded-full overflow-hidden">
-                    <div className="h-full bg-accent-break w-[5%]" />
+                <div className="text-xs">
+                    <span className="text-gray-500 block">Unplanned Work</span>
+                    <span className="text-white font-mono text-accent-break">45m</span>
                 </div>
             </div>
         </div>

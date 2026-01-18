@@ -1,4 +1,12 @@
+
 export type CategoryType = 'focus' | 'meeting' | 'break' | 'communication' | 'other';
+
+export interface Category {
+  id: string;
+  name: string;
+  type: CategoryType;
+  color?: string; // Optional override
+}
 
 export interface TimeBlock {
   id: string;
@@ -7,10 +15,12 @@ export interface TimeBlock {
   startTime: string; // HH:MM
   endTime: string; // HH:MM
   durationMinutes: number;
-  type: CategoryType;
+  type: CategoryType; // Kept for easy access, but ideally derived from categoryId
+  categoryId: string; // The Foreign Key
   description?: string;
 }
 
+// View Model for the UI
 export interface CategoryStat {
   id: string;
   label: string;
