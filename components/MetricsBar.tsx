@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Target, Activity } from 'lucide-react';
 
@@ -66,8 +65,8 @@ export const MetricsBar: React.FC<MetricsBarProps> = ({ plannedMinutes, actualMi
             <div>
                  <h3 className="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-2">Adherence Rate</h3>
                  <div className="flex items-center gap-3">
-                    <div className="relative w-16 h-16">
-                        <svg className="w-full h-full transform -rotate-90">
+                    <div className="relative w-16 h-16 shrink-0">
+                        <svg viewBox="0 0 64 64" className="w-full h-full transform -rotate-90">
                             <circle cx="32" cy="32" r="28" stroke="#2a2d36" strokeWidth="6" fill="transparent" />
                             <circle 
                                 cx="32" cy="32" r="28" 
@@ -77,6 +76,7 @@ export const MetricsBar: React.FC<MetricsBarProps> = ({ plannedMinutes, actualMi
                                 strokeDasharray={2 * Math.PI * 28}
                                 strokeDashoffset={2 * Math.PI * 28 * (1 - adherenceRate / 100)}
                                 className="transition-all duration-1000 ease-out"
+                                strokeLinecap="round"
                             />
                         </svg>
                         <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">

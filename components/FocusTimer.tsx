@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2 } from 'lucide-react';
-import { TimerState, CategoryType } from '../types';
+import { TimerState, CategoryType, Category } from '../types';
 import { getCategories, addCategory, deleteCategory } from '../services/api';
 
 type TimerMode = 'FOCUS' | 'SHORT_BREAK' | 'LONG_BREAK';
@@ -17,9 +17,9 @@ export const FocusTimer: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState(MODES.FOCUS.minutes * 60);
   
   // Category Management State
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState('');
+  const [activeCategory, setActiveCategory] = useState<Category | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryTitle, setNewCategoryTitle] = useState('');
@@ -80,36 +80,31 @@ export const FocusTimer: React.FC = () => {
   const handleAddCategory = async () => {
     if (newCategoryTitle.trim()) {
         const titleToAdd = newCategoryTitle.trim();
-        
-        // Optimistic Update
-        const prevCategories = [...categories];
-        setCategories([...categories, titleToAdd]);
-        setActiveCategory(titleToAdd);
-        setNewCategoryTitle('');
-        setIsAddingCategory(false);
+        const typeToAdd = newCategoryType;
 
         try {
-          await addCategory(titleToAdd, newCategoryType);
+          const newCat = await addCategory(titleToAdd, typeToAdd);
+          setCategories([...categories, newCat]);
+          setActiveCategory(newCat);
+          setNewCategoryTitle('');
+          setIsAddingCategory(false);
         } catch (error) {
-          // Revert if failed (though our service handles mock fallback)
-          setCategories(prevCategories);
+          console.error("Failed to add category");
         }
     }
   };
 
-  const handleDeleteCategory = async (catToDelete: string) => {
-    const prevCategories = [...categories];
-    const updatedCats = categories.filter(t => t !== catToDelete);
-    
-    setCategories(updatedCats);
-    if (activeCategory === catToDelete) {
-        setActiveCategory(updatedCats.length > 0 ? updatedCats[0] : '');
-    }
-
+  const handleDeleteCategory = async (catToDelete: Category) => {
     try {
-      await deleteCategory(catToDelete);
+      await deleteCategory(catToDelete.id);
+      const updatedCats = categories.filter(c => c.id !== catToDelete.id);
+      setCategories(updatedCats);
+      
+      if (activeCategory?.id === catToDelete.id) {
+          setActiveCategory(updatedCats.length > 0 ? updatedCats[0] : null);
+      }
     } catch (error) {
-      setCategories(prevCategories);
+       console.error("Failed to delete category");
     }
   };
 
@@ -165,7 +160,7 @@ export const FocusTimer: React.FC = () => {
                 
                 {/* Type Selection */}
                 <div className="flex gap-2 justify-center">
-                    {(['focus', 'meeting', 'communication'] as const).map((t) => (
+                    {(['focus', 'meeting'] as const).map((t) => (
                         <button
                             key={t}
                             onClick={() => setNewCategoryType(t)}
@@ -173,8 +168,7 @@ export const FocusTimer: React.FC = () => {
                                 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-all
                                 ${newCategoryType === t 
                                     ? (t === 'focus' ? 'bg-accent-focus text-black border-accent-focus' 
-                                       : t === 'meeting' ? 'bg-accent-meeting text-white border-accent-meeting'
-                                       : 'bg-purple-400 text-white border-purple-400')
+                                       : 'bg-accent-meeting text-white border-accent-meeting')
                                     : 'bg-[#1a1d24] border-[#3f434e] text-gray-500 hover:border-gray-500 hover:text-gray-300'
                                 }
                             `}
@@ -199,7 +193,7 @@ export const FocusTimer: React.FC = () => {
                              </div>
                          ) : (
                              <>
-                                <span className="font-medium truncate">{activeCategory || "Select a category"}</span>
+                                <span className="font-medium truncate">{activeCategory?.name || "Select a category"}</span>
                                 <ChevronDown size={16} className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                              </>
                          )}
@@ -210,12 +204,12 @@ export const FocusTimer: React.FC = () => {
                         <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
                             <div className="max-h-48 overflow-y-auto custom-scrollbar">
                                 {categories.map(cat => (
-                                    <div key={cat} className="flex items-center justify-between p-3 hover:bg-[#2a2d36] group/item transition-colors">
+                                    <div key={cat.id} className="flex items-center justify-between p-3 hover:bg-[#2a2d36] group/item transition-colors">
                                         <button 
                                             onClick={() => { setActiveCategory(cat); setIsDropdownOpen(false); }}
                                             className="flex-1 text-left text-sm text-gray-200 truncate"
                                         >
-                                            {cat}
+                                            {cat.name}
                                         </button>
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat); }}

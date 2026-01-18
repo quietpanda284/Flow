@@ -1,5 +1,5 @@
 
-export type CategoryType = 'focus' | 'meeting' | 'break' | 'communication' | 'other';
+export type CategoryType = 'focus' | 'meeting' | 'break' | 'other';
 
 export interface Category {
   id: string;
@@ -18,6 +18,7 @@ export interface TimeBlock {
   type: CategoryType; // Kept for easy access, but ideally derived from categoryId
   categoryId: string; // The Foreign Key
   description?: string;
+  isPlanned?: boolean; // New field for DB differentiation
 }
 
 // View Model for the UI

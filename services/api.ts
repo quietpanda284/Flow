@@ -1,11 +1,11 @@
-import { CategoryStat, TimeBlock, CategoryType } from '../types';
+
+import { CategoryStat, TimeBlock, CategoryType, Category } from '../types';
 import { MASTER_CATEGORIES, MOCK_TIME_BLOCKS } from '../constants';
 
 const API_URL = 'http://localhost:3001/api';
 
 /**
  * Helper to handle fetch with timeout and JSON parsing.
- * If the server is down (timeout/error), it throws so we can catch and use mocks.
  */
 async function fetchWithTimeout(resource: string, options: RequestInit = {}) {
   const { timeout = 2000 } = options as any;
@@ -22,57 +22,97 @@ async function fetchWithTimeout(resource: string, options: RequestInit = {}) {
     return await response.json();
   } catch (error) {
     clearTimeout(id);
+    console.error(`API Call Failed: ${resource}`, error);
     throw error;
   }
 }
 
 // --- Categories Service ---
 
-export const getCategories = async (): Promise<string[]> => {
+export const getCategories = async (): Promise<Category[]> => {
   try {
-    const data = await fetchWithTimeout('/categories');
-    return data.map((cat: any) => cat.name);
+    return await fetchWithTimeout('/categories');
   } catch (e) {
-    console.warn('Backend unavailable, using mock categories.');
-    // Fallback to MASTER_CATEGORIES labels
-    return MASTER_CATEGORIES.map(c => c.name);
+    console.warn('Backend unavailable, using fallback categories.');
+    return MASTER_CATEGORIES;
   }
 };
 
-export const addCategory = async (name: string, type: CategoryType = 'focus'): Promise<string> => {
+export const addCategory = async (name: string, type: CategoryType = 'focus'): Promise<Category> => {
   try {
-    const data = await fetchWithTimeout('/categories', {
+    return await fetchWithTimeout('/categories', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, type })
     });
-    return data.name;
   } catch (e) {
-    console.warn('Backend unavailable, simulating add category.');
-    return name;
+    throw e;
   }
 };
 
-export const deleteCategory = async (name: string): Promise<boolean> => {
+export const deleteCategory = async (id: string): Promise<boolean> => {
   try {
-    // Assuming backend deletes by name or you'd map name to ID here
-    await fetchWithTimeout(`/categories/${encodeURIComponent(name)}`, {
+    await fetchWithTimeout(`/categories/${id}`, {
       method: 'DELETE',
     });
     return true;
   } catch (e) {
-    console.warn('Backend unavailable, simulating delete category.');
-    return true;
+    throw e;
   }
 };
 
-// --- Time Blocks Service (Future Implementation) ---
+// --- Time Blocks Service ---
 
-export const getTimeBlocks = async (): Promise<TimeBlock[]> => {
-  try {
-    const data = await fetchWithTimeout('/time-entries');
-    return data;
-  } catch (e) {
-    return MOCK_TIME_BLOCKS;
-  }
+export const getPlannedBlocks = async (): Promise<TimeBlock[]> => {
+    try {
+        return await fetchWithTimeout('/blocks?type=planned');
+    } catch (e) {
+        return [];
+    }
+};
+
+export const getActualBlocks = async (): Promise<TimeBlock[]> => {
+    try {
+        return await fetchWithTimeout('/blocks?type=actual');
+    } catch (e) {
+        return MOCK_TIME_BLOCKS; // Fallback for demo if server down
+    }
+};
+
+export const addTimeBlock = async (block: TimeBlock, isPlanned: boolean): Promise<TimeBlock> => {
+    try {
+        // Ensure backend knows it's planned
+        const payload = { ...block, isPlanned, id: undefined }; 
+        return await fetchWithTimeout('/blocks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    } catch (e) {
+        throw e;
+    }
+};
+
+export const updateTimeBlock = async (block: TimeBlock): Promise<boolean> => {
+    try {
+        await fetchWithTimeout(`/blocks/${block.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(block)
+        });
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+export const deleteTimeBlock = async (blockId: string): Promise<boolean> => {
+    try {
+        await fetchWithTimeout(`/blocks/${blockId}`, {
+            method: 'DELETE'
+        });
+        return true;
+    } catch (e) {
+        return false;
+    }
 };

@@ -1,26 +1,84 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { MetricsBar } from './components/MetricsBar';
 import { CategoryBreakdown } from './components/CategoryBreakdown';
 import { FocusTimer } from './components/FocusTimer';
 import { VerticalTimeline } from './components/VerticalTimeline';
 import { Heatmap } from './components/Heatmap';
-import { MOCK_ACTUAL_BLOCKS, MOCK_PLANNED_BLOCKS, MASTER_CATEGORIES } from './constants';
+import { TimeBlock, Category } from './types';
+import { getCategories, getActualBlocks, getPlannedBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock } from './services/api';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('Home');
 
-  const [actualBlocks] = useState(MOCK_ACTUAL_BLOCKS);
-  const [plannedBlocks] = useState(MOCK_PLANNED_BLOCKS);
-  const [categories] = useState(MASTER_CATEGORIES);
+  const [actualBlocks, setActualBlocks] = useState<TimeBlock[]>([]);
+  const [plannedBlocks, setPlannedBlocks] = useState<TimeBlock[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Initial Fetch
+  useEffect(() => {
+    const fetchData = async () => {
+        setIsLoading(true);
+        const [cats, actual, planned] = await Promise.all([
+            getCategories(),
+            getActualBlocks(),
+            getPlannedBlocks()
+        ]);
+        setCategories(cats);
+        setActualBlocks(actual);
+        setPlannedBlocks(planned);
+        setIsLoading(false);
+    };
+    fetchData();
+  }, []);
 
   // Simple stats calculation for the new metrics bar
   const totalPlannedMinutes = plannedBlocks.reduce((acc, curr) => acc + curr.durationMinutes, 0);
   const totalActualMinutes = actualBlocks.reduce((acc, curr) => acc + curr.durationMinutes, 0);
   
-  // Mock adherence rate for demo purposes (would be calculated by complex intersection logic)
+  // Mock adherence rate for demo purposes
   const adherenceRate = 82; 
+
+  const handleAddBlock = async (newBlock: TimeBlock) => {
+    // Optimistic Update
+    const tempBlock = { ...newBlock };
+    setPlannedBlocks((prev) => [...prev, tempBlock]);
+    
+    try {
+        const savedBlock = await addTimeBlock(newBlock, true);
+        // Replace temp ID with real ID
+        setPlannedBlocks((prev) => prev.map(b => b.id === tempBlock.id ? savedBlock : b));
+    } catch (e) {
+        console.error("Failed to save block", e);
+        // Revert
+        setPlannedBlocks((prev) => prev.filter(b => b.id !== tempBlock.id));
+    }
+  };
+
+  const handleDeleteBlock = async (blockId: string) => {
+    const prevBlocks = [...plannedBlocks];
+    setPlannedBlocks((prev) => prev.filter((b) => b.id !== blockId));
+    
+    const success = await deleteTimeBlock(blockId);
+    if (!success) {
+        setPlannedBlocks(prevBlocks);
+    }
+  };
+
+  const handleUpdateBlock = async (updatedBlock: TimeBlock) => {
+    const prevBlocks = [...plannedBlocks];
+    setPlannedBlocks((prev) => prev.map((b) => (b.id === updatedBlock.id ? updatedBlock : b)));
+    
+    const success = await updateTimeBlock(updatedBlock);
+    if (!success) {
+        setPlannedBlocks(prevBlocks);
+    }
+  };
+
+  if (isLoading) {
+      return <div className="min-h-screen bg-background flex items-center justify-center text-white">Loading FlowState...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-background text-gray-200 font-sans selection:bg-accent-focus selection:text-black">
@@ -47,7 +105,7 @@ export default function App() {
             </div>
         </header>
 
-        {/* Home View (Dual Layer Timeline) */}
+        {/* Home View (Dual Layer Timeline - Read Only) */}
         {currentPage === 'Home' && (
             <>
                 <MetricsBar 
@@ -59,7 +117,13 @@ export default function App() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Main Feed - Timeline with Ghost Overlay */}
                     <div className="lg:col-span-2 h-[600px]">
-                        <VerticalTimeline plannedBlocks={plannedBlocks} actualBlocks={actualBlocks} />
+                        <VerticalTimeline 
+                            plannedBlocks={plannedBlocks} 
+                            actualBlocks={actualBlocks} 
+                            onAddBlock={() => {}} // No-op for read-only
+                            isInteractive={false}
+                            viewMode="review"
+                        />
                     </div>
                     
                     {/* Sidebar Stats */}
@@ -70,17 +134,18 @@ export default function App() {
             </>
         )}
 
-        {/* Plan View (Simplified for Demo - reusing Timeline) */}
+        {/* Plan View (Interactive - Solid Blocks) */}
         {currentPage === 'Plan' && (
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
-                 <div className="bg-card border border-border rounded-xl p-8 flex items-center justify-center">
-                    <div className="text-center">
-                        <h2 className="text-xl font-bold text-white mb-2">Planning Interface</h2>
-                        <p className="text-gray-500">Drag and drop blocks here to schedule your day.</p>
-                        <p className="text-xs text-gray-600 mt-4">(Feature coming in next update)</p>
-                    </div>
-                 </div>
-                 <VerticalTimeline plannedBlocks={plannedBlocks} actualBlocks={[]} />
+             <div className="grid grid-cols-1 gap-6 h-[700px]">
+                 <VerticalTimeline 
+                    plannedBlocks={plannedBlocks} 
+                    actualBlocks={[]} 
+                    onAddBlock={handleAddBlock} 
+                    onDeleteBlock={handleDeleteBlock}
+                    onUpdateBlock={handleUpdateBlock}
+                    isInteractive={true}
+                    viewMode="plan"
+                 />
              </div>
         )}
 

@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { CATEGORY_COLORS, CATEGORY_TEXT_COLORS } from '../constants';
 import { calculateCategoryStats } from '../utils/analytics';
-import { PieChart, Monitor, Coffee, MessageSquare, Grid } from 'lucide-react';
+import { PieChart, Monitor, Coffee, Grid } from 'lucide-react';
 import { CategoryType, TimeBlock, Category } from '../types';
 
 const getIcon = (type: CategoryType) => {
@@ -10,7 +10,6 @@ const getIcon = (type: CategoryType) => {
         case 'focus': return Monitor;
         case 'meeting': return PieChart;
         case 'break': return Coffee;
-        case 'communication': return MessageSquare;
         default: return Grid;
     }
 }

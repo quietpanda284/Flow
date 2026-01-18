@@ -14,7 +14,6 @@ import {
 export const MASTER_CATEGORIES: Category[] = [
   { id: 'cat_1', name: 'Development', type: 'focus' },
   { id: 'cat_2', name: 'Collaboration', type: 'meeting' },
-  { id: 'cat_3', name: 'Communication', type: 'communication' },
   { id: 'cat_4', name: 'Breaks', type: 'break' },
   { id: 'cat_5', name: 'Admin', type: 'other' },
 ];
@@ -50,8 +49,8 @@ export const MOCK_PLANNED_BLOCKS: TimeBlock[] = [
         startTime: '11:30',
         endTime: '12:00',
         durationMinutes: 30,
-        type: 'communication',
-        categoryId: 'cat_3'
+        type: 'other',
+        categoryId: 'cat_5'
     },
     {
         id: 'p4',
@@ -159,7 +158,6 @@ export const CATEGORY_COLORS = {
   focus: 'bg-accent-focus',
   meeting: 'bg-accent-meeting',
   break: 'bg-accent-break',
-  communication: 'bg-purple-400',
   other: 'bg-accent-other'
 };
 
@@ -167,7 +165,6 @@ export const CATEGORY_TEXT_COLORS = {
   focus: 'text-accent-focus',
   meeting: 'text-accent-meeting',
   break: 'text-accent-break',
-  communication: 'text-purple-400',
   other: 'text-accent-other'
 };
 
