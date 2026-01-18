@@ -2,13 +2,13 @@
 import { CategoryStat, TimeBlock, CategoryType, Category } from '../types';
 import { MASTER_CATEGORIES, MOCK_TIME_BLOCKS } from '../constants';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = 'http://127.0.0.1:3006/api';
 
 /**
  * Helper to handle fetch with timeout and JSON parsing.
  */
 async function fetchWithTimeout(resource: string, options: RequestInit = {}) {
-  const { timeout = 2000 } = options as any;
+  const { timeout = 5000 } = options as any;
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   
@@ -111,6 +111,26 @@ export const deleteTimeBlock = async (blockId: string): Promise<boolean> => {
         await fetchWithTimeout(`/blocks/${blockId}`, {
             method: 'DELETE'
         });
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+// --- Test/Admin Service ---
+
+export const resetDatabase = async (): Promise<boolean> => {
+    try {
+        await fetchWithTimeout('/reset', { method: 'POST' });
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+export const seedDatabase = async (): Promise<boolean> => {
+    try {
+        await fetchWithTimeout('/seed', { method: 'POST' });
         return true;
     } catch (e) {
         return false;

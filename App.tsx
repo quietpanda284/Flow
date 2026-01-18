@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { MetricsBar } from './components/MetricsBar';
@@ -5,11 +6,15 @@ import { CategoryBreakdown } from './components/CategoryBreakdown';
 import { FocusTimer } from './components/FocusTimer';
 import { VerticalTimeline } from './components/VerticalTimeline';
 import { Heatmap } from './components/Heatmap';
+import { BackendTest } from './components/BackendTest';
+import { SettingsPage } from './components/SettingsPage';
 import { TimeBlock, Category } from './types';
 import { getCategories, getActualBlocks, getPlannedBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock } from './services/api';
+import { Loader2 } from 'lucide-react';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('Home');
+  const [isDevMode, setIsDevMode] = useState(false); // Developer Mode State
 
   const [actualBlocks, setActualBlocks] = useState<TimeBlock[]>([]);
   const [plannedBlocks, setPlannedBlocks] = useState<TimeBlock[]>([]);
@@ -31,7 +36,7 @@ export default function App() {
         setIsLoading(false);
     };
     fetchData();
-  }, []);
+  }, [currentPage]); // Reload data when navigating, useful after testing resets
 
   // Simple stats calculation for the new metrics bar
   const totalPlannedMinutes = plannedBlocks.reduce((acc, curr) => acc + curr.durationMinutes, 0);
@@ -76,13 +81,9 @@ export default function App() {
     }
   };
 
-  if (isLoading) {
-      return <div className="min-h-screen bg-background flex items-center justify-center text-white">Loading FlowState...</div>;
-  }
-
   return (
     <div className="min-h-screen bg-background text-gray-200 font-sans selection:bg-accent-focus selection:text-black">
-      <Sidebar activePage={currentPage} onNavigate={setCurrentPage} />
+      <Sidebar activePage={currentPage} onNavigate={setCurrentPage} isDevMode={isDevMode} />
       
       {/* Main Content Area */}
       <main className="pl-24 pr-8 py-8 min-h-screen max-w-[1600px] mx-auto">
@@ -93,11 +94,20 @@ export default function App() {
                 <h1 className="text-3xl font-bold text-white tracking-tight">
                     {currentPage === 'Home' ? 'Mission Control' : 
                      currentPage === 'Trends' ? 'Productivity Trends' : 
-                     currentPage === 'Plan' ? 'Daily Planning' : 'Focus Session'}
+                     currentPage === 'Plan' ? 'Daily Planning' : 
+                     currentPage === 'Test' ? 'System Tools' : 
+                     currentPage === 'Settings' ? 'Preferences' : 'Focus Session'}
                 </h1>
                 {currentPage === 'Home' && <p className="text-gray-500 text-sm mt-1">Comparing intent vs reality.</p>}
             </div>
             <div className="flex items-center gap-4">
+                {/* Non-intrusive loading indicator */}
+                {isLoading && (
+                    <div className="flex items-center gap-2 px-3 py-1 bg-card rounded-full border border-border animate-in fade-in">
+                        <Loader2 className="animate-spin text-accent-focus" size={14} />
+                        <span className="text-xs text-gray-400">Syncing...</span>
+                    </div>
+                )}
                 <div className="text-right hidden sm:block">
                     <div className="text-sm font-medium text-white">Tuesday</div>
                     <div className="text-xs text-gray-500">October 24, 2023</div>
@@ -179,6 +189,20 @@ export default function App() {
                 <div className="w-full max-w-3xl h-full">
                     <FocusTimer />
                 </div>
+            </div>
+        )}
+
+        {/* Test / Admin View - Only if enabled */}
+        {currentPage === 'Test' && isDevMode && (
+            <div className="flex items-center justify-center min-h-[600px] h-[calc(100vh-160px)]">
+                <BackendTest />
+            </div>
+        )}
+        
+        {/* Settings View */}
+        {currentPage === 'Settings' && (
+            <div className="flex items-center justify-center min-h-[600px] h-[calc(100vh-160px)]">
+                <SettingsPage isDevMode={isDevMode} onToggleDevMode={setIsDevMode} />
             </div>
         )}
 

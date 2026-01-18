@@ -1,10 +1,11 @@
 import express from 'express';
 import cors from 'cors';
-import bodyParser from 'body-parser';
 import { Sequelize, DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOptional } from 'sequelize';
 
 // --- CONFIGURATION ---
 const PORT = 3006;
+const DB_DIALECT = (process.env.DB_DIALECT as 'mysql' | 'sqlite') || 'sqlite';
+const DB_STORAGE = process.env.DB_STORAGE || 'database.sqlite';
 const DB_NAME = process.env.DB_NAME || 'flowstate';
 const DB_USER = process.env.DB_USER || 'root';
 const DB_PASS = process.env.DB_PASS || '12345678';
@@ -12,14 +13,26 @@ const DB_HOST = process.env.DB_HOST || 'localhost';
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json());
+// Fix: Cast express.json() to any to avoid type mismatch with app.use
+app.use(express.json() as any);
 
 // --- DATABASE CONNECTION ---
-const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
-  host: DB_HOST,
-  dialect: 'mysql',
-  logging: false,
-});
+// Fallback to SQLite if no specific MySQL env vars are present to ensure the app runs out of the box.
+let sequelize: Sequelize;
+
+if (DB_DIALECT === 'mysql') {
+    sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
+        host: DB_HOST,
+        dialect: 'mysql',
+        logging: false,
+    });
+} else {
+    sequelize = new Sequelize({
+        dialect: 'sqlite',
+        storage: DB_STORAGE,
+        logging: false
+    });
+}
 
 // --- MODELS ---
 
@@ -155,10 +168,39 @@ const seedData = async () => {
       }
     ]);
     console.log('Seeding Complete.');
+  } else {
+      console.log('Database already has data. Skipping seed.');
   }
 };
 
 // --- ROUTES ---
+
+// Health Check
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', database: DB_DIALECT });
+});
+
+// Admin / Test Routes
+app.post('/api/reset', async (req, res) => {
+    try {
+        await TimeBlock.destroy({ where: {}, truncate: true });
+        await Category.destroy({ where: {}, truncate: true });
+        res.json({ success: true, message: 'Database reset complete.' });
+    } catch (err) {
+        console.error('Reset failed:', err);
+        res.status(500).json({ error: 'Failed to reset database' });
+    }
+});
+
+app.post('/api/seed', async (req, res) => {
+    try {
+        await seedData();
+        res.json({ success: true, message: 'Database seeded (if empty).' });
+    } catch (err) {
+        console.error('Seed failed:', err);
+        res.status(500).json({ error: 'Failed to seed database' });
+    }
+});
 
 // Categories
 app.get('/api/categories', async (req, res) => {
@@ -235,13 +277,15 @@ app.delete('/api/blocks/:id', async (req, res) => {
 // --- INIT ---
 const startServer = async () => {
   try {
+    // Attempt to connect to DB
     await sequelize.authenticate();
-    console.log('Database connected.');
-    await sequelize.sync(); // Auto-create tables
+    console.log(`Database connected (${DB_DIALECT}).`);
+    await sequelize.sync(); 
     await seedData();
     
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+    // Bind to 0.0.0.0 for better container compatibility
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://0.0.0.0:${PORT}`);
     });
   } catch (error) {
     console.error('Unable to start server:', error);
