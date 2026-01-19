@@ -197,7 +197,8 @@ export default function App() {
                     <div className="lg:col-span-2 h-[600px]">
                         <VerticalTimeline 
                             plannedBlocks={plannedBlocks} 
-                            actualBlocks={actualBlocks} 
+                            actualBlocks={actualBlocks}
+                            categories={categories}
                             onAddBlock={() => {}} // No-op for read-only
                             isInteractive={false}
                             viewMode="review"
@@ -218,6 +219,7 @@ export default function App() {
                  <VerticalTimeline 
                     plannedBlocks={plannedBlocks} 
                     actualBlocks={[]} 
+                    categories={categories}
                     onAddBlock={handleAddBlock} 
                     onDeleteBlock={handleDeleteBlock}
                     onUpdateBlock={handleUpdateBlock}

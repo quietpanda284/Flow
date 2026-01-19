@@ -1,12 +1,13 @@
 
 import React, { useRef, useEffect, useState } from 'react';
-import { CATEGORY_COLORS, MASTER_CATEGORIES } from '../constants';
+import { CATEGORY_COLORS } from '../constants';
 import { TimeBlock, CategoryType, Category } from '../types';
-import { X, Brain, Coffee, Briefcase, Trash2, Edit2, Plus } from 'lucide-react';
+import { X, Brain, Coffee, Briefcase, Trash2, Edit2, Plus, ChevronDown, Check, Folder } from 'lucide-react';
 
 interface VerticalTimelineProps {
   plannedBlocks: TimeBlock[];
   actualBlocks: TimeBlock[];
+  categories?: Category[]; // List of available categories for selection
   onAddBlock: (block: TimeBlock) => void;
   onDeleteBlock?: (blockId: string) => void;
   onUpdateBlock?: (block: TimeBlock) => void;
@@ -43,6 +44,7 @@ const snapToGrid = (minutes: number) => {
 export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({ 
   plannedBlocks, 
   actualBlocks, 
+  categories = [], // Default to empty if not provided
   onAddBlock,
   onDeleteBlock,
   onUpdateBlock,
@@ -67,8 +69,8 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
   // Form State
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [blockTitle, setBlockTitle] = useState('');
-  const [blockType, setBlockType] = useState<CategoryType>('focus');
-  const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
 
   // Current Time State
   const [currentTime, setCurrentTime] = useState(() => {
@@ -128,7 +130,8 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
     setIsPopoverOpen(false); // Close popover if open
     setEditingBlockId(null); // Clear editing state
     setBlockTitle('');
-    setFilteredCategories([]);
+    setSelectedCategoryId('');
+    setIsCategoryDropdownOpen(false);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -180,6 +183,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
     setDraftBlock({ start: startTime, end: endTime, duration });
     setEditingBlockId(null);
     setBlockTitle('');
+    setSelectedCategoryId('');
     
     // Position Popover
     setPopoverPosition({ 
@@ -218,7 +222,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
         if (block) {
             setEditingBlockId(block.id);
             setBlockTitle(block.title);
-            setBlockType(block.type);
+            setSelectedCategoryId(block.categoryId);
             setDraftBlock({
                 start: block.startTime,
                 end: block.endTime,
@@ -250,7 +254,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
     });
     setEditingBlockId(null);
     setBlockTitle('');
-    setBlockType('focus');
+    setSelectedCategoryId('');
     
     setPopoverPosition({
         top: (startMins / 60) * hourHeight + gridOffset,
@@ -260,26 +264,14 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setBlockTitle(val);
-    if (val.trim().length > 0) {
-        const matches = MASTER_CATEGORIES.filter(c => 
-            c.name.toLowerCase().includes(val.toLowerCase())
-        );
-        setFilteredCategories(matches);
-    } else {
-        setFilteredCategories([]);
-    }
-  };
-
-  const selectCategory = (cat: Category) => {
-    setBlockTitle(cat.name);
-    setBlockType(cat.type);
-    setFilteredCategories([]);
+    setBlockTitle(e.target.value);
   };
 
   const saveBlock = () => {
-    if (!draftBlock || !blockTitle.trim()) return;
+    if (!draftBlock || !blockTitle.trim() || !selectedCategoryId) return;
+
+    const selectedCategory = categories.find(c => c.id === selectedCategoryId);
+    const blockType = selectedCategory ? selectedCategory.type : 'focus';
 
     if (editingBlockId && onUpdateBlock) {
         // Update existing
@@ -291,7 +283,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
             endTime: draftBlock.end,
             durationMinutes: draftBlock.duration,
             type: blockType,
-            categoryId: 'custom', 
+            categoryId: selectedCategoryId, 
         };
         onUpdateBlock(updatedBlock);
     } else {
@@ -304,13 +296,14 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
             endTime: draftBlock.end,
             durationMinutes: draftBlock.duration,
             type: blockType,
-            categoryId: 'custom', 
+            categoryId: selectedCategoryId, 
         };
         onAddBlock(newBlock);
     }
 
     setIsPopoverOpen(false);
     setBlockTitle('');
+    setSelectedCategoryId('');
     setEditingBlockId(null);
   };
 
@@ -361,6 +354,9 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
         </div>
     );
   };
+
+  // Get selected category object for display
+  const selectedCategory = categories.find(c => c.id === selectedCategoryId);
 
   return (
     <div className="bg-card border border-border rounded-xl flex flex-col h-full relative overflow-hidden">
@@ -477,7 +473,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
             {/* CREATE/EDIT POPOVER */}
             {isPopoverOpen && (
                 <div 
-                    className="create-popover absolute z-50 w-72 bg-[#1a1d24]/95 backdrop-blur-md border border-[#2a2d36] rounded-xl shadow-2xl p-4 animate-in fade-in zoom-in-95 duration-200"
+                    className="create-popover absolute z-50 w-80 bg-[#1a1d24]/95 backdrop-blur-md border border-[#2a2d36] rounded-xl shadow-2xl p-4 animate-in fade-in zoom-in-95 duration-200"
                     style={{ top: `${popoverPosition.top + 10}px`, left: '100px', right: '16px' }}
                     onClick={(e) => e.stopPropagation()} 
                 >
@@ -490,60 +486,74 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
                         </button>
                     </div>
 
-                    {/* Type Selector */}
-                    <div className="flex gap-1 mb-3 bg-black/20 p-1 rounded-lg">
-                        {(['focus', 'meeting', 'break'] as const).map((t) => {
-                             const Icon = t === 'focus' ? Brain : t === 'meeting' ? Briefcase : Coffee;
-                             return (
-                                <button
-                                    key={t}
-                                    onClick={() => setBlockType(t)}
-                                    className={`flex-1 py-1.5 rounded flex items-center justify-center transition-all ${
-                                        blockType === t 
-                                        ? 'bg-[#2a2d36] text-white shadow-sm' 
-                                        : 'text-gray-600 hover:text-gray-400'
-                                    }`}
-                                    title={t}
-                                >
-                                    <Icon size={14} />
-                                </button>
-                             );
-                        })}
-                    </div>
+                    <div className="space-y-4">
+                        {/* Title Input */}
+                        <div>
+                            <input
+                                autoFocus
+                                type="text"
+                                placeholder="What are you planning?"
+                                className="w-full bg-transparent border-b border-gray-700 pb-2 text-sm text-white placeholder-gray-600 outline-none focus:border-accent-focus transition-colors"
+                                value={blockTitle}
+                                onChange={handleTitleChange}
+                                onKeyDown={(e) => e.key === 'Enter' && saveBlock()}
+                            />
+                        </div>
 
-                    <div className="relative mb-4">
-                        <input
-                            autoFocus
-                            type="text"
-                            placeholder="What are you planning?"
-                            className="w-full bg-transparent border-b border-gray-700 pb-2 text-sm text-white placeholder-gray-600 outline-none focus:border-accent-focus transition-colors"
-                            value={blockTitle}
-                            onChange={handleTitleChange}
-                            onKeyDown={(e) => e.key === 'Enter' && saveBlock()}
-                        />
-                        
-                        {filteredCategories.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-[#0f1117] border border-[#2a2d36] rounded-lg shadow-xl overflow-hidden max-h-32 overflow-y-auto z-50">
-                                {filteredCategories.map((cat) => (
-                                    <button
-                                        key={cat.id}
-                                        onClick={() => selectCategory(cat)}
-                                        className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-[#1a1d24] hover:text-white flex items-center gap-2"
-                                    >
-                                        <div className={`w-1.5 h-1.5 rounded-full ${CATEGORY_COLORS[cat.type]}`} />
-                                        {cat.name}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                        {/* Category Select */}
+                        <div className="relative">
+                            <label className="text-[10px] uppercase text-gray-500 font-semibold tracking-wider mb-1.5 block">Category</label>
+                            
+                            <button 
+                                onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                                className={`w-full flex items-center justify-between p-2 rounded-lg border text-xs transition-all ${selectedCategory ? 'bg-[#2a2d36] border-[#3f434e] text-white' : 'bg-[#15171e] border-[#2a2d36] text-gray-400 hover:border-gray-500'}`}
+                            >
+                                <div className="flex items-center gap-2 truncate">
+                                    {selectedCategory ? (
+                                        <>
+                                            <div className={`w-2 h-2 rounded-full ${CATEGORY_COLORS[selectedCategory.type]}`} />
+                                            <span>{selectedCategory.name}</span>
+                                        </>
+                                    ) : (
+                                        <span className="italic">Select a category...</span>
+                                    )}
+                                </div>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+                            </button>
 
-                    <button 
-                        onClick={saveBlock}
-                        className="w-full py-2 bg-white text-black text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-gray-200 transition-colors"
-                    >
-                        {editingBlockId ? 'Update Plan' : 'Save Plan'}
-                    </button>
+                            {isCategoryDropdownOpen && (
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-lg shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto custom-scrollbar">
+                                    {categories.length > 0 ? (
+                                        categories.map((cat) => (
+                                            <button
+                                                key={cat.id}
+                                                onClick={() => {
+                                                    setSelectedCategoryId(cat.id);
+                                                    setIsCategoryDropdownOpen(false);
+                                                }}
+                                                className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-[#2a2d36] hover:text-white flex items-center gap-2 border-b border-[#2a2d36] last:border-0"
+                                            >
+                                                <div className={`w-2 h-2 rounded-full shrink-0 ${CATEGORY_COLORS[cat.type]}`} />
+                                                <span className="truncate">{cat.name}</span>
+                                                {selectedCategoryId === cat.id && <Check size={12} className="ml-auto text-accent-focus" />}
+                                            </button>
+                                        ))
+                                    ) : (
+                                        <div className="p-3 text-center text-xs text-gray-500">No categories found.</div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Action Button */}
+                        <button 
+                            onClick={saveBlock}
+                            disabled={!blockTitle.trim() || !selectedCategoryId}
+                            className="w-full py-2 bg-white text-black text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {editingBlockId ? 'Update Plan' : 'Save Plan'}
+                        </button>
+                    </div>
                 </div>
             )}
             
