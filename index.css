@@ -6,7 +6,7 @@
 /* Define Local Fonts */
 @font-face {
   font-family: 'Bebas Neue Pro';
-  src: url('/fonts/BebasNeuePro-Regular.otf') format('opentype');
+  src: url('/font/BebasNeuePro-Regular.otf') format('opentype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -14,7 +14,7 @@
 
 @font-face {
   font-family: 'Bebas Neue Pro';
-  src: url('/fonts/BebasNeuePro-Bold.otf') format('opentype');
+  src: url('/font/BebasNeuePro-Bold.otf') format('opentype');
   font-weight: 700;
   font-style: normal;
   font-display: swap;

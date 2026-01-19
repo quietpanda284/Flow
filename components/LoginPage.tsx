@@ -28,7 +28,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f1117] flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-[#0f1117] flex flex-col items-center justify-center p-4 font-display">
       <div className="mb-8 select-none animate-in fade-in slide-in-from-top-4 duration-700">
         <svg 
             width="80" 
@@ -44,7 +44,7 @@ export const LoginPage: React.FC = () => {
                 y="52%" 
                 dominantBaseline="middle" 
                 textAnchor="middle" 
-                fontFamily="'Inter', sans-serif" 
+                fontFamily="'Bebas Neue Pro', sans-serif" 
                 fontWeight="800" 
                 fontSize="18" 
                 stroke="#00FF94" 
@@ -63,14 +63,13 @@ export const LoginPage: React.FC = () => {
                 <Lock className="text-accent-focus" size={24} />
             </div>
             <div>
-                {/* Applied font-display here for the Bebas look */}
-                <h1 className="text-2xl font-display text-white tracking-wide">Welcome Back</h1>
-                <p className="text-sm text-gray-500">Enter your credentials to access mission control.</p>
+                <h1 className="text-2xl text-white tracking-wide">Welcome Back</h1>
+                <p className="text-sm text-gray-500 font-sans">Enter your credentials to access mission control.</p>
             </div>
         </div>
 
         {error && (
-            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-3 text-red-400 text-sm animate-in fade-in slide-in-from-top-2">
+            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-3 text-red-400 text-sm animate-in fade-in slide-in-from-top-2 font-sans">
                 <AlertCircle size={18} />
                 {error}
             </div>
@@ -78,23 +77,23 @@ export const LoginPage: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-                <label className="block text-xs uppercase font-bold text-gray-500 mb-1.5 ml-1">Username</label>
+                <label className="block text-xs uppercase font-bold text-gray-500 mb-1.5 ml-1 tracking-wider">Username</label>
                 <input 
                     type="text" 
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-accent-focus transition-colors font-sans"
+                    className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-accent-focus transition-colors font-display tracking-wide text-lg"
                     placeholder="admin"
                     autoFocus
                 />
             </div>
             <div>
-                <label className="block text-xs uppercase font-bold text-gray-500 mb-1.5 ml-1">Password</label>
+                <label className="block text-xs uppercase font-bold text-gray-500 mb-1.5 ml-1 tracking-wider">Password</label>
                 <input 
                     type="password" 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-accent-focus transition-colors font-sans"
+                    className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-accent-focus transition-colors font-display tracking-wide text-lg"
                     placeholder="••••••••"
                 />
             </div>
@@ -102,7 +101,7 @@ export const LoginPage: React.FC = () => {
             <button 
                 type="submit"
                 disabled={isSubmitting || !username || !password}
-                className="w-full bg-accent-focus hover:bg-accent-focus/90 text-black font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed group font-display tracking-wider text-lg"
+                className="w-full bg-accent-focus hover:bg-accent-focus/90 text-black font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed group tracking-wider text-xl"
             >
                 {isSubmitting ? (
                     <Loader2 className="animate-spin" size={20} />
@@ -114,7 +113,7 @@ export const LoginPage: React.FC = () => {
             </button>
         </form>
 
-        <div className="mt-6 text-center text-xs text-gray-600">
+        <div className="mt-6 text-center text-xs text-gray-600 font-sans">
             Default Login: <span className="font-mono text-gray-400">admin</span> / <span className="font-mono text-gray-400">password123</span>
         </div>
       </div>

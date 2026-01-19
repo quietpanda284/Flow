@@ -30,7 +30,7 @@ app.use(cors({
     credentials: true // Allow cookies
 }) as any);
 app.use(express.json() as any);
-app.use(cookieParser());
+app.use(cookieParser() as any);
 
 // --- DATABASE CONNECTION ---
 let sequelize: Sequelize;
