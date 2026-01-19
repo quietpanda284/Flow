@@ -350,7 +350,13 @@ const startServer = async () => {
       console.log(`Server running on http://0.0.0.0:${PORT}`);
     });
   } catch (error) {
-    console.error('Unable to start server:', error);
+    console.error('----------------------------------------');
+    console.error('DATABASE CONNECTION FAILED');
+    console.error(`Host: ${DB_HOST}`);
+    console.error(`User: ${DB_USER}`);
+    console.error(`Error Code: ${(error as any).parent?.code}`); // e.g., 'ECONNREFUSED'
+    console.error(`Message: ${(error as any).message}`);
+    console.error('----------------------------------------');
   }
 };
 
