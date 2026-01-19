@@ -1,8 +1,11 @@
 
 import { CategoryStat, TimeBlock, CategoryType, Category } from '../types';
 
-// Hardcoded to LAN IP as requested.
-const API_URL = 'http://192.168.1.11:3006/api';
+// Use relative path '/api'. 
+// This forces the browser to send requests to the same server serving the page (Vite on port 5174).
+// Vite will then proxy these requests to the backend (port 3006) locally.
+// This solves CORS issues and Firewall blocks on port 3006.
+const API_URL = '/api';
 
 /**
  * Helper to handle fetch with timeout and JSON parsing.

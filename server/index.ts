@@ -11,9 +11,17 @@ const DB_STORAGE = process.env.DB_STORAGE || 'database.sqlite';
 const DB_NAME = process.env.DB_NAME || 'flowstate';
 const DB_USER = process.env.DB_USER || 'root';
 const DB_PASS = process.env.DB_PASS || '12345678';
-const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_HOST = process.env.DB_HOST || '127.0.0.1';
+const DB_PORT = parseInt(process.env.DB_PORT || '3306', 10);
 
 const app = express();
+
+// Log every incoming request to help debug phone connections
+app.use((req, res, next) => {
+    console.log(`[INCOMING] ${req.method} ${req.url} from ${req.ip}`);
+    next();
+});
+
 app.use(cors());
 app.use(express.json() as any);
 
@@ -23,9 +31,10 @@ let sequelize: Sequelize;
 console.log(`Initializing Database...`);
 console.log(`Dialect: ${DB_DIALECT}`);
 if (DB_DIALECT === 'mysql') {
-    console.log(`Connecting to MySQL at ${DB_HOST} as ${DB_USER}...`);
+    console.log(`Connecting to MySQL at ${DB_HOST}:${DB_PORT} as ${DB_USER}...`);
     sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
         host: DB_HOST,
+        port: DB_PORT,
         dialect: 'mysql',
         logging: false,
     });
@@ -106,85 +115,89 @@ const getTodayStr = () => new Date().toISOString().split('T')[0];
 
 // --- SEEDER ---
 const seedData = async () => {
-  const catCount = await (Category as any).count();
-  if (catCount === 0) {
-    console.log('Seeding Database...');
-    const today = getTodayStr();
+  try {
+    const catCount = await (Category as any).count();
+    if (catCount === 0) {
+      console.log('Seeding Database...');
+      const today = getTodayStr();
 
-    // Create Categories
-    await (Category as any).bulkCreate([
-      { id: 'cat_1', name: 'Development', type: 'focus' },
-      { id: 'cat_2', name: 'Collaboration', type: 'meeting' },
-      { id: 'cat_4', name: 'Breaks', type: 'break' },
-      { id: 'cat_5', name: 'Admin', type: 'other' },
-    ]);
+      // Create Categories
+      await (Category as any).bulkCreate([
+        { id: 'cat_1', name: 'Development', type: 'focus' },
+        { id: 'cat_2', name: 'Collaboration', type: 'meeting' },
+        { id: 'cat_4', name: 'Breaks', type: 'break' },
+        { id: 'cat_5', name: 'Admin', type: 'other' },
+      ]);
 
-    // Create Planned Blocks
-    await (TimeBlock as any).bulkCreate([
-      {
-        title: 'Morning Deep Work',
-        app: 'VS Code',
-        date: today,
-        startTime: '09:00',
-        endTime: '11:00',
-        durationMinutes: 120,
-        type: 'focus',
-        categoryId: 'cat_1',
-        description: 'Planned: Auth Middleware',
-        isPlanned: true
-      },
-      {
-        title: 'Team Standup',
-        app: 'Zoom',
-        date: today,
-        startTime: '11:00',
-        endTime: '11:30',
-        durationMinutes: 30,
-        type: 'meeting',
-        categoryId: 'cat_2',
-        isPlanned: true
-      },
-      {
-        title: 'Lunch',
-        app: 'Offline',
-        date: today,
-        startTime: '12:00',
-        endTime: '13:00',
-        durationMinutes: 60,
-        type: 'break',
-        categoryId: 'cat_4',
-        isPlanned: true
-      }
-    ]);
+      // Create Planned Blocks
+      await (TimeBlock as any).bulkCreate([
+        {
+          title: 'Morning Deep Work',
+          app: 'VS Code',
+          date: today,
+          startTime: '09:00',
+          endTime: '11:00',
+          durationMinutes: 120,
+          type: 'focus',
+          categoryId: 'cat_1',
+          description: 'Planned: Auth Middleware',
+          isPlanned: true
+        },
+        {
+          title: 'Team Standup',
+          app: 'Zoom',
+          date: today,
+          startTime: '11:00',
+          endTime: '11:30',
+          durationMinutes: 30,
+          type: 'meeting',
+          categoryId: 'cat_2',
+          isPlanned: true
+        },
+        {
+          title: 'Lunch',
+          app: 'Offline',
+          date: today,
+          startTime: '12:00',
+          endTime: '13:00',
+          durationMinutes: 60,
+          type: 'break',
+          categoryId: 'cat_4',
+          isPlanned: true
+        }
+      ]);
 
-    // Create Actual Blocks
-    await (TimeBlock as any).bulkCreate([
-      {
-        title: 'Deep Work: Backend API',
-        app: 'VS Code',
-        date: today,
-        startTime: '09:15',
-        endTime: '11:00',
-        durationMinutes: 105,
-        type: 'focus',
-        categoryId: 'cat_1',
-        isPlanned: false
-      },
-      {
-        title: 'Daily Standup',
-        app: 'Zoom',
-        date: today,
-        startTime: '11:00',
-        endTime: '11:35',
-        durationMinutes: 35,
-        type: 'meeting',
-        categoryId: 'cat_2',
-        isPlanned: false
-      }
-    ]);
-    console.log('Seeding Complete.');
-  } else {
-      console.log('Database already has data. Skipping seed.');
+      // Create Actual Blocks
+      await (TimeBlock as any).bulkCreate([
+        {
+          title: 'Deep Work: Backend API',
+          app: 'VS Code',
+          date: today,
+          startTime: '09:15',
+          endTime: '11:00',
+          durationMinutes: 105,
+          type: 'focus',
+          categoryId: 'cat_1',
+          isPlanned: false
+        },
+        {
+          title: 'Daily Standup',
+          app: 'Zoom',
+          date: today,
+          startTime: '11:00',
+          endTime: '11:35',
+          durationMinutes: 35,
+          type: 'meeting',
+          categoryId: 'cat_2',
+          isPlanned: false
+        }
+      ]);
+      console.log('Seeding Complete.');
+    } else {
+        console.log('Database already has data. Skipping seed.');
+    }
+  } catch (err) {
+    console.error("Seeding error:", err);
   }
 };
 
@@ -223,6 +236,7 @@ app.get('/api/categories', async (req, res) => {
     const categories = await (Category as any).findAll();
     res.json(categories);
   } catch (err) {
+    console.error("GET /categories error:", err);
     res.status(500).json({ error: 'Failed to fetch categories' });
   }
 });
@@ -264,6 +278,7 @@ app.get('/api/blocks', async (req, res) => {
     });
     res.json(blocks);
   } catch (err) {
+    console.error("GET /blocks error:", err);
     res.status(500).json({ error: 'Failed to fetch blocks' });
   }
 });
@@ -331,7 +346,7 @@ const startServer = async () => {
   try {
     // Attempt to connect to DB
     await sequelize.authenticate();
-    console.log(`Database connected (${DB_DIALECT}).`);
+    console.log(`Database connected (${DB_DIALECT}) on ${DB_HOST}:${DB_PORT}`);
     
     try {
         // Using alter: true to update schema if it exists
