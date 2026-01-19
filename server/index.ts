@@ -108,12 +108,17 @@ const verifyToken = (req: any, res: any, next: any) => {
 
 // --- SEEDER HELPER ---
 const seedDefaultCategoriesForUser = async (userId: string) => {
-    await (Category as any).bulkCreate([
-        { userId, name: 'Development', type: 'focus' },
-        { userId, name: 'Collaboration', type: 'meeting' },
-        { userId, name: 'Breaks', type: 'break' },
-        { userId, name: 'Admin', type: 'other' },
-    ], { ignoreDuplicates: true }); // Ignore if they already exist to be safe
+    console.log(`[SEED] Creating default categories for user ${userId}`);
+    try {
+        await (Category as any).bulkCreate([
+            { userId, name: 'Development', type: 'focus' },
+            { userId, name: 'Collaboration', type: 'meeting' },
+            { userId, name: 'Breaks', type: 'break' },
+            { userId, name: 'Admin', type: 'other' },
+        ], { ignoreDuplicates: true });
+    } catch (e: any) {
+        console.warn(`[SEED] Category seeding warning: ${e.message}`);
+    }
 };
 
 // --- ROUTES ---
@@ -249,6 +254,7 @@ app.get('/api/history', verifyToken, async (req, res) => {
 
 app.post('/api/reset', verifyToken, async (req, res) => {
     const userId = (req as any).user.id;
+    console.log(`[RESET] Clearing data for user ${userId}`);
     try {
         // Only delete data for THIS user
         await (TimeBlock as any).destroy({ where: { userId } });
@@ -266,8 +272,12 @@ app.post('/api/reset', verifyToken, async (req, res) => {
 
 app.post('/api/seed', verifyToken, async (req, res) => {
     const userId = (req as any).user.id;
-    const today = new Date().toISOString().split('T')[0];
     
+    // Use provided date or default to UTC today (which might be tomorrow in some timezones)
+    const date = req.body.date || new Date().toISOString().split('T')[0];
+    
+    console.log(`[SEED] Seeding data for user ${userId} on date ${date}`);
+
     try {
         // 1. Ensure Categories exist
         const catCount = await (Category as any).count({ where: { userId } });
@@ -278,23 +288,24 @@ app.post('/api/seed', verifyToken, async (req, res) => {
         // 2. Fetch ANY suitable categories to link blocks to
         const allCats = await (Category as any).findAll({ where: { userId } });
         
+        if (!allCats || allCats.length === 0) {
+             throw new Error("Categories could not be created/found.");
+        }
+
         // Robust selection: Find focus/meeting/break, or fallback to first available
         const focusCat = allCats.find((c: any) => c.type === 'focus') || allCats[0];
         const meetingCat = allCats.find((c: any) => c.type === 'meeting') || allCats.find((c: any) => c.type === 'focus') || allCats[0];
         const breakCat = allCats.find((c: any) => c.type === 'break') || allCats[0];
 
-        if (focusCat) {
-             await (TimeBlock as any).bulkCreate([
-                { userId, title: 'Deep Work', app: 'VS Code', date: today, startTime: '09:00', endTime: '11:00', durationMinutes: 120, type: focusCat.type, categoryId: focusCat.id, isPlanned: true },
-                { userId, title: 'Team Sync', app: 'Slack', date: today, startTime: '11:00', endTime: '11:30', durationMinutes: 30, type: meetingCat.type, categoryId: meetingCat.id, isPlanned: true },
-                { userId, title: 'Project Review', app: 'Linear', date: today, startTime: '13:00', endTime: '14:00', durationMinutes: 60, type: focusCat.type, categoryId: focusCat.id, isPlanned: false },
-                { userId, title: 'Lunch', app: 'Life', date: today, startTime: '12:00', endTime: '12:45', durationMinutes: 45, type: 'break', categoryId: breakCat?.id || null, isPlanned: true }
-            ]);
-            res.json({ success: true, message: "Seeded data successfully" });
-        } else {
-            // Should not happen if seedDefaultCategoriesForUser works
-            res.status(500).json({ error: "No categories available to seed data." });
-        }
+        await (TimeBlock as any).bulkCreate([
+            { userId, title: 'Deep Work', app: 'VS Code', date, startTime: '09:00', endTime: '11:00', durationMinutes: 120, type: focusCat.type, categoryId: focusCat.id, isPlanned: true },
+            { userId, title: 'Team Sync', app: 'Slack', date, startTime: '11:00', endTime: '11:30', durationMinutes: 30, type: meetingCat.type, categoryId: meetingCat.id, isPlanned: true },
+            { userId, title: 'Project Review', app: 'Linear', date, startTime: '13:00', endTime: '14:00', durationMinutes: 60, type: focusCat.type, categoryId: focusCat.id, isPlanned: false },
+            { userId, title: 'Lunch', app: 'Life', date, startTime: '12:00', endTime: '12:45', durationMinutes: 45, type: 'break', categoryId: breakCat?.id || null, isPlanned: true }
+        ]);
+        
+        res.json({ success: true, message: "Seeded data successfully" });
+
     } catch (e: any) {
         console.error("Seed failed", e);
         res.status(500).json({ error: e.message });

@@ -35,9 +35,15 @@ export const BackendTest: React.FC<BackendTestProps> = ({ onDataChanged }) => {
         setStatus(null);
         
         try {
-            const success = await seedDatabase();
+            // Calculate local date YYYY-MM-DD so data appears on today's timeline
+            const today = new Date();
+            const offset = today.getTimezoneOffset();
+            const localDate = new Date(today.getTime() - (offset*60*1000));
+            const dateStr = localDate.toISOString().split('T')[0];
+
+            const success = await seedDatabase(dateStr);
             if (success) {
-                setStatus({ type: 'success', message: 'Seed data generated successfully.' });
+                setStatus({ type: 'success', message: `Data generated for ${dateStr}.` });
                 if (onDataChanged) onDataChanged();
             } else {
                 setStatus({ type: 'error', message: 'Failed to seed database.' });

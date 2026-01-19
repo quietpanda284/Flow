@@ -1,4 +1,3 @@
-
 import { CategoryStat, TimeBlock, CategoryType, Category } from '../types';
 
 const API_URL = '/api';
@@ -148,7 +147,11 @@ export const resetDatabase = async (): Promise<boolean> => {
     return true;
 };
 
-export const seedDatabase = async (): Promise<boolean> => {
-    await fetchWithTimeout('/seed', { method: 'POST' });
+export const seedDatabase = async (date?: string): Promise<boolean> => {
+    await fetchWithTimeout('/seed', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date }) 
+    });
     return true;
 };
