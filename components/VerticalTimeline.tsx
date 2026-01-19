@@ -278,6 +278,21 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
     setBlockTitle(e.target.value);
   };
 
+  // Toggle handlers
+  const switchToCategory = () => {
+    setIsBreakMode(false);
+    setSelectedCategoryId(''); 
+  };
+
+  const switchToBreak = () => {
+    setIsBreakMode(true);
+    // Automatically select the 'break' category (assuming it exists, e.g. from seed)
+    const breakCat = categories.find(c => c.type === 'break');
+    if (breakCat) {
+        setSelectedCategoryId(breakCat.id);
+    }
+  };
+
   const saveBlock = () => {
     if (!draftBlock || !blockTitle.trim() || !selectedCategoryId) return;
 
@@ -369,10 +384,8 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
   // Get selected category object for display
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
 
-  // Filter categories for Dropdown based on mode
-  const filteredCategories = categories.filter(c => 
-      isBreakMode ? c.type === 'break' : c.type !== 'break'
-  );
+  // Filter only NON-break categories for the dropdown in "Category" mode
+  const workCategories = categories.filter(c => c.type !== 'break');
 
   return (
     <div className="bg-card border border-border rounded-xl flex flex-col h-full relative overflow-hidden">
@@ -520,59 +533,68 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
                         <div className="relative">
                             <div className="flex items-center gap-2 mb-1.5">
                                  <button
-                                    onClick={() => { setIsBreakMode(false); setSelectedCategoryId(''); }}
+                                    onClick={switchToCategory}
                                     className={`text-[10px] uppercase font-bold tracking-wider transition-colors ${!isBreakMode ? 'text-accent-focus' : 'text-gray-600 hover:text-gray-400'}`}
                                  >
                                     Category
                                  </button>
                                  <span className="text-gray-700 text-[10px] font-bold">/</span>
                                  <button
-                                    onClick={() => { setIsBreakMode(true); setSelectedCategoryId(''); }}
+                                    onClick={switchToBreak}
                                     className={`text-[10px] uppercase font-bold tracking-wider transition-colors ${isBreakMode ? 'text-accent-break' : 'text-gray-600 hover:text-gray-400'}`}
                                  >
                                     Break
                                  </button>
                             </div>
                             
-                            <button 
-                                onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                                className={`w-full flex items-center justify-between p-2 rounded-lg border text-xs transition-all ${selectedCategory ? 'bg-[#2a2d36] border-[#3f434e] text-white' : 'bg-[#15171e] border-[#2a2d36] text-gray-400 hover:border-gray-500'}`}
-                            >
-                                <div className="flex items-center gap-2 truncate">
-                                    {selectedCategory ? (
-                                        <>
-                                            <div className={`w-2 h-2 rounded-full ${CATEGORY_COLORS[selectedCategory.type]}`} />
-                                            <span>{selectedCategory.name}</span>
-                                        </>
-                                    ) : (
-                                        <span className="italic">{isBreakMode ? 'Select break type...' : 'Select a category...'}</span>
-                                    )}
-                                </div>
-                                <ChevronDown size={14} className={`transition-transform duration-200 ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
-                            </button>
+                            {!isBreakMode ? (
+                                <>
+                                    <button 
+                                        onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                                        className={`w-full flex items-center justify-between p-2 rounded-lg border text-xs transition-all ${selectedCategory ? 'bg-[#2a2d36] border-[#3f434e] text-white' : 'bg-[#15171e] border-[#2a2d36] text-gray-400 hover:border-gray-500'}`}
+                                    >
+                                        <div className="flex items-center gap-2 truncate">
+                                            {selectedCategory ? (
+                                                <>
+                                                    <div className={`w-2 h-2 rounded-full ${CATEGORY_COLORS[selectedCategory.type]}`} />
+                                                    <span>{selectedCategory.name}</span>
+                                                </>
+                                            ) : (
+                                                <span className="italic">Select a category...</span>
+                                            )}
+                                        </div>
+                                        <ChevronDown size={14} className={`transition-transform duration-200 ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+                                    </button>
 
-                            {isCategoryDropdownOpen && (
-                                <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-lg shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto custom-scrollbar">
-                                    {filteredCategories.length > 0 ? (
-                                        filteredCategories.map((cat) => (
-                                            <button
-                                                key={cat.id}
-                                                onClick={() => {
-                                                    setSelectedCategoryId(cat.id);
-                                                    setIsCategoryDropdownOpen(false);
-                                                }}
-                                                className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-[#2a2d36] hover:text-white flex items-center gap-2 border-b border-[#2a2d36] last:border-0"
-                                            >
-                                                <div className={`w-2 h-2 rounded-full shrink-0 ${CATEGORY_COLORS[cat.type]}`} />
-                                                <span className="truncate">{cat.name}</span>
-                                                {selectedCategoryId === cat.id && <Check size={12} className="ml-auto text-accent-focus" />}
-                                            </button>
-                                        ))
-                                    ) : (
-                                        <div className="p-3 text-center text-xs text-gray-500">
-                                            {isBreakMode ? 'No break categories.' : 'No categories found.'}
+                                    {isCategoryDropdownOpen && (
+                                        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-lg shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto custom-scrollbar">
+                                            {workCategories.length > 0 ? (
+                                                workCategories.map((cat) => (
+                                                    <button
+                                                        key={cat.id}
+                                                        onClick={() => {
+                                                            setSelectedCategoryId(cat.id);
+                                                            setIsCategoryDropdownOpen(false);
+                                                        }}
+                                                        className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-[#2a2d36] hover:text-white flex items-center gap-2 border-b border-[#2a2d36] last:border-0"
+                                                    >
+                                                        <div className={`w-2 h-2 rounded-full shrink-0 ${CATEGORY_COLORS[cat.type]}`} />
+                                                        <span className="truncate">{cat.name}</span>
+                                                        {selectedCategoryId === cat.id && <Check size={12} className="ml-auto text-accent-focus" />}
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <div className="p-3 text-center text-xs text-gray-500">
+                                                    No categories found.
+                                                </div>
+                                            )}
                                         </div>
                                     )}
+                                </>
+                            ) : (
+                                <div className="w-full p-2 rounded-lg border border-[#2a2d36] bg-[#2a2d36] text-white text-xs flex items-center gap-2 cursor-default select-none">
+                                    <div className={`w-2 h-2 rounded-full ${CATEGORY_COLORS['break']}`} />
+                                    <span className="font-medium">Break</span>
                                 </div>
                             )}
                         </div>
