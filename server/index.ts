@@ -305,8 +305,8 @@ app.post('/api/auth/register', async (req, res) => {
 
         res.json({ success: true, user: { id: user.id, username: user.username } });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Registration failed' });
+        console.error("Registration Error:", err);
+        res.status(500).json({ error: 'Registration failed server-side' });
     }
 });
 

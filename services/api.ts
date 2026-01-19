@@ -23,13 +23,29 @@ async function fetchWithTimeout(resource: string, options: RequestInit = {}) {
     });
     clearTimeout(id);
     
-    // Handle Auth failure globally if needed, though often better handled in context
+    // Attempt to parse JSON response
+    let data;
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+        try {
+            data = await response.json();
+        } catch (e) {
+            // Ignore parse errors if body is empty or not JSON
+        }
+    }
+
+    // Handle Auth failure globally
     if (response.status === 401) {
         throw new Error('UNAUTHORIZED');
     }
 
-    if (!response.ok) throw new Error('API Error');
-    return await response.json();
+    if (!response.ok) {
+        // Prefer server-provided error message, fallback to status text
+        const errorMessage = data?.error || `Request failed: ${response.statusText} (${response.status})`;
+        throw new Error(errorMessage);
+    }
+
+    return data;
   } catch (error) {
     clearTimeout(id);
     throw error;
