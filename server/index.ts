@@ -28,7 +28,7 @@ app.use((req, res, next) => {
 app.use(cors({
     origin: true, // Allow all origins for dev, or specify the frontend URL
     credentials: true // Allow cookies
-}));
+}) as any);
 app.use(express.json() as any);
 app.use(cookieParser());
 

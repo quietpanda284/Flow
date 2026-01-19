@@ -63,7 +63,8 @@ export const LoginPage: React.FC = () => {
                 <Lock className="text-accent-focus" size={24} />
             </div>
             <div>
-                <h1 className="text-xl font-bold text-white tracking-wide">Welcome Back</h1>
+                {/* Applied font-display here for the Bebas look */}
+                <h1 className="text-2xl font-display text-white tracking-wide">Welcome Back</h1>
                 <p className="text-sm text-gray-500">Enter your credentials to access mission control.</p>
             </div>
         </div>
@@ -82,7 +83,7 @@ export const LoginPage: React.FC = () => {
                     type="text" 
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-accent-focus transition-colors"
+                    className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-accent-focus transition-colors font-sans"
                     placeholder="admin"
                     autoFocus
                 />
@@ -93,7 +94,7 @@ export const LoginPage: React.FC = () => {
                     type="password" 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-accent-focus transition-colors"
+                    className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-accent-focus transition-colors font-sans"
                     placeholder="••••••••"
                 />
             </div>
@@ -101,7 +102,7 @@ export const LoginPage: React.FC = () => {
             <button 
                 type="submit"
                 disabled={isSubmitting || !username || !password}
-                className="w-full bg-accent-focus hover:bg-accent-focus/90 text-black font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed group"
+                className="w-full bg-accent-focus hover:bg-accent-focus/90 text-black font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed group font-display tracking-wider text-lg"
             >
                 {isSubmitting ? (
                     <Loader2 className="animate-spin" size={20} />

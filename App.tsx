@@ -179,7 +179,8 @@ export default function App() {
         {/* Header */}
         <header className="flex justify-between items-center mb-8">
             <div>
-                <h1 className="text-3xl font-bold text-white tracking-tight">
+                {/* Applied font-display to main header */}
+                <h1 className="text-3xl font-display font-bold text-white tracking-wide">
                     {currentPage === 'Home' ? 'Mission Control' : 
                      currentPage === 'Trends' ? 'Productivity Trends' : 
                      currentPage === 'Plan' ? 'Daily Planning' : 

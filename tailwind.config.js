@@ -10,7 +10,10 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Bebas Neue Pro"', '"Bebas Neue"', 'Inter', 'sans-serif'],
+        // Default sans stack for body text and inputs (Fixes the CAPS LOCK issue)
+        sans: ['Inter', 'sans-serif'],
+        // Display stack for Headings/Logos
+        display: ['"Bebas Neue Pro"', '"Bebas Neue"', 'sans-serif'],
       },
       colors: {
         background: '#0f1117',
