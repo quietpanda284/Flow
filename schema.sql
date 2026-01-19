@@ -17,17 +17,20 @@ CREATE TABLE IF NOT EXISTS Users (
 -- Create Categories table
 CREATE TABLE IF NOT EXISTS Categories (
     id VARCHAR(36) NOT NULL,
+    userId VARCHAR(36) NOT NULL, -- Link to User
     name VARCHAR(255) NOT NULL,
     type ENUM('focus', 'meeting', 'break', 'other') NOT NULL,
     createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY name (name)
+    KEY userId (userId),
+    UNIQUE KEY user_category_name (userId, name) -- Ensure unique names per user, not globally
 );
 
 -- Create TimeBlocks table
 CREATE TABLE IF NOT EXISTS TimeBlocks (
     id VARCHAR(36) NOT NULL,
+    userId VARCHAR(36) NOT NULL, -- Link to User
     title VARCHAR(255) NOT NULL,
     app VARCHAR(255) NOT NULL DEFAULT 'Manual',
     date DATE NOT NULL,             -- Format: YYYY-MM-DD
@@ -41,6 +44,7 @@ CREATE TABLE IF NOT EXISTS TimeBlocks (
     createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
+    KEY userId (userId),
     KEY categoryId (categoryId),
     KEY date (date)
 );

@@ -19,7 +19,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'flowstate_secret_key_change_me';
 
 const app = express();
 
-// Declare sequelize at the top level to avoid hoisting/TDZ issues in route definitions
+// Declare sequelize at the top level
 let sequelize: Sequelize;
 
 // --- MIDDLEWARE ---
@@ -44,12 +44,14 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
 
 class Category extends Model<InferAttributes<Category>, InferCreationAttributes<Category>> {
   declare id: CreationOptional<string>;
+  declare userId: string; // Foreign Key
   declare name: string;
   declare type: 'focus' | 'meeting' | 'break' | 'other';
 }
 
 class TimeBlock extends Model<InferAttributes<TimeBlock>, InferCreationAttributes<TimeBlock>> {
   declare id: CreationOptional<string>;
+  declare userId: string; // Foreign Key
   declare title: string;
   declare app: CreationOptional<string>;
   declare date: string;
@@ -71,12 +73,14 @@ const initModels = (seq: Sequelize) => {
 
     (Category as any).init({
         id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-        name: { type: DataTypes.STRING, allowNull: false, unique: true },
+        userId: { type: DataTypes.UUID, allowNull: false }, // Link to User
+        name: { type: DataTypes.STRING, allowNull: false }, // Removed unique: true (names can duplicate across users)
         type: { type: DataTypes.ENUM('focus', 'meeting', 'break', 'other'), allowNull: false },
     }, { sequelize: seq, modelName: 'Category' });
 
     (TimeBlock as any).init({
         id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+        userId: { type: DataTypes.UUID, allowNull: false }, // Link to User
         title: { type: DataTypes.STRING, allowNull: false },
         app: { type: DataTypes.STRING, allowNull: false, defaultValue: 'Manual' },
         date: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },
@@ -102,36 +106,14 @@ const verifyToken = (req: any, res: any, next: any) => {
     }
 };
 
-// --- SEEDER ---
-const seedData = async () => {
-    try {
-        const userCount = await (User as any).count();
-        if (userCount === 0) {
-            console.log('Seeding Admin User...');
-            const salt = await bcrypt.genSalt(10);
-            const hash = await bcrypt.hash('password123', salt);
-            await (User as any).create({ username: 'admin', passwordHash: hash });
-        }
-
-        const catCount = await (Category as any).count();
-        if (catCount === 0) {
-            console.log('Seeding Categories...');
-            const today = new Date().toISOString().split('T')[0];
-            await (Category as any).bulkCreate([
-                { id: 'cat_1', name: 'Development', type: 'focus' },
-                { id: 'cat_2', name: 'Collaboration', type: 'meeting' },
-                { id: 'cat_4', name: 'Breaks', type: 'break' },
-                { id: 'cat_5', name: 'Admin', type: 'other' },
-            ]);
-            // Sample Blocks
-            await (TimeBlock as any).bulkCreate([
-                { title: 'Deep Work', app: 'VS Code', date: today, startTime: '09:00', endTime: '11:00', durationMinutes: 120, type: 'focus', categoryId: 'cat_1', isPlanned: true },
-                { title: 'Standup', app: 'Zoom', date: today, startTime: '11:00', endTime: '11:30', durationMinutes: 30, type: 'meeting', categoryId: 'cat_2', isPlanned: true }
-            ]);
-        }
-    } catch (err) {
-        console.error("Seed error:", err);
-    }
+// --- SEEDER HELPER ---
+const seedDefaultCategoriesForUser = async (userId: string) => {
+    await (Category as any).bulkCreate([
+        { userId, name: 'Development', type: 'focus' },
+        { userId, name: 'Collaboration', type: 'meeting' },
+        { userId, name: 'Breaks', type: 'break' },
+        { userId, name: 'Admin', type: 'other' },
+    ]);
 };
 
 // --- ROUTES ---
@@ -167,6 +149,9 @@ app.post('/api/auth/register', async (req, res) => {
         const passwordHash = await bcrypt.hash(password, salt);
         const user = await (User as any).create({ username, passwordHash });
         
+        // Seed default categories for this new user
+        await seedDefaultCategoriesForUser(user.id);
+        
         const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
         res.cookie('token', token, { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 7 * 24 * 3600000 } as any);
         res.json({ success: true, user: { id: user.id, username: user.username } });
@@ -191,54 +176,69 @@ app.get('/api/auth/me', verifyToken, async (req, res) => {
     }
 });
 
-// Data Routes
+// --- DATA ROUTES (SCOPED TO USER) ---
+
 app.get('/api/categories', verifyToken, async (req, res) => {
-    const cats = await (Category as any).findAll();
+    const userId = (req as any).user.id;
+    const cats = await (Category as any).findAll({ where: { userId } });
     res.json(cats);
 });
 
 app.post('/api/categories', verifyToken, async (req, res) => {
     try {
-        const cat = await (Category as any).create(req.body);
+        const userId = (req as any).user.id;
+        const cat = await (Category as any).create({ ...req.body, userId });
         res.json(cat);
     } catch (e) { res.status(400).json({ error: 'Failed to create category' }); }
 });
 
 app.delete('/api/categories/:id', verifyToken, async (req, res) => {
-    await (Category as any).destroy({ where: { id: req.params.id } });
-    res.json({ success: true });
+    const userId = (req as any).user.id;
+    // Only delete if it belongs to the user
+    const deleted = await (Category as any).destroy({ where: { id: req.params.id, userId } });
+    if (deleted) res.json({ success: true });
+    else res.status(404).json({ error: 'Category not found or access denied' });
 });
 
 app.get('/api/blocks', verifyToken, async (req, res) => {
+    const userId = (req as any).user.id;
     const { type, date } = req.query;
-    const where: any = { isPlanned: type === 'planned' };
+    
+    const where: any = { userId, isPlanned: type === 'planned' };
     if (date) where.date = date;
+    
     const blocks = await (TimeBlock as any).findAll({ where, order: [['startTime', 'ASC']] });
     res.json(blocks);
 });
 
 app.post('/api/blocks', verifyToken, async (req, res) => {
     try {
+        const userId = (req as any).user.id;
         const date = req.body.date || new Date().toISOString().split('T')[0];
-        const block = await (TimeBlock as any).create({ ...req.body, date });
+        const block = await (TimeBlock as any).create({ ...req.body, userId, date });
         res.json(block);
     } catch (e) { res.status(400).json({ error: 'Failed to create block' }); }
 });
 
 app.put('/api/blocks/:id', verifyToken, async (req, res) => {
-    await (TimeBlock as any).update(req.body, { where: { id: req.params.id } });
-    res.json({ success: true });
+    const userId = (req as any).user.id;
+    const [updated] = await (TimeBlock as any).update(req.body, { where: { id: req.params.id, userId } });
+    if (updated) res.json({ success: true });
+    else res.status(404).json({ error: 'Block not found or access denied' });
 });
 
 app.delete('/api/blocks/:id', verifyToken, async (req, res) => {
-    await (TimeBlock as any).destroy({ where: { id: req.params.id } });
-    res.json({ success: true });
+    const userId = (req as any).user.id;
+    const deleted = await (TimeBlock as any).destroy({ where: { id: req.params.id, userId } });
+    if (deleted) res.json({ success: true });
+    else res.status(404).json({ error: 'Block not found or access denied' });
 });
 
 app.get('/api/history', verifyToken, async (req, res) => {
+    const userId = (req as any).user.id;
     try {
         const blocks = await (TimeBlock as any).findAll({
-            where: { isPlanned: false, type: 'focus' },
+            where: { userId, isPlanned: false, type: 'focus' },
             attributes: ['date', [sequelize.fn('SUM', sequelize.col('durationMinutes')), 'totalMinutes']],
             group: ['date'],
             raw: true
@@ -248,13 +248,38 @@ app.get('/api/history', verifyToken, async (req, res) => {
 });
 
 app.post('/api/reset', verifyToken, async (req, res) => {
-    await (TimeBlock as any).destroy({ where: {}, truncate: true });
-    await (Category as any).destroy({ where: {}, truncate: true });
+    const userId = (req as any).user.id;
+    // Only delete data for THIS user
+    await (TimeBlock as any).destroy({ where: { userId } });
+    await (Category as any).destroy({ where: { userId } });
+    
+    // Re-seed defaults for this user so the UI isn't empty
+    await seedDefaultCategoriesForUser(userId);
+    
     res.json({ success: true });
 });
 
 app.post('/api/seed', verifyToken, async (req, res) => {
-    await seedData();
+    const userId = (req as any).user.id;
+    const today = new Date().toISOString().split('T')[0];
+    
+    // 1. Ensure Categories exist
+    const catCount = await (Category as any).count({ where: { userId } });
+    if (catCount === 0) {
+        await seedDefaultCategoriesForUser(userId);
+    }
+
+    // 2. Fetch a category to link blocks to
+    const devCat = await (Category as any).findOne({ where: { userId, name: 'Development' } });
+    const collabCat = await (Category as any).findOne({ where: { userId, name: 'Collaboration' } });
+
+    if (devCat && collabCat) {
+         await (TimeBlock as any).bulkCreate([
+            { userId, title: 'Deep Work', app: 'VS Code', date: today, startTime: '09:00', endTime: '11:00', durationMinutes: 120, type: 'focus', categoryId: devCat.id, isPlanned: true },
+            { userId, title: 'Standup', app: 'Zoom', date: today, startTime: '11:00', endTime: '11:30', durationMinutes: 30, type: 'meeting', categoryId: collabCat.id, isPlanned: true }
+        ]);
+    }
+
     res.json({ success: true });
 });
 
@@ -306,8 +331,8 @@ const start = async () => {
             await sequelize.sync();
         }
 
-        await seedData();
-
+        // We don't need a global seeder anymore since data is per-user
+        
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Server running on port ${PORT}`);
         });
