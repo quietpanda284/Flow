@@ -101,8 +101,13 @@ const timeToMinutes = (time: string): number => {
 /**
  * Calculates high-fidelity metrics comparing Planned vs Actual time blocks.
  * Uses a bitmask approach to handle overlaps correctly.
+ * Excludes 'break' type blocks from all calculations.
  */
 export const calculateScheduleMetrics = (planned: TimeBlock[], actual: TimeBlock[]) => {
+    // Filter out breaks from the calculation source
+    const workPlanned = planned.filter(b => b.type !== 'break');
+    const workActual = actual.filter(b => b.type !== 'break');
+
     const MINUTES_IN_DAY = 24 * 60;
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -121,8 +126,8 @@ export const calculateScheduleMetrics = (planned: TimeBlock[], actual: TimeBlock
        });
     };
 
-    fill(planned, planMap);
-    fill(actual, actMap);
+    fill(workPlanned, planMap);
+    fill(workActual, actMap);
 
     let totalOverlapCount = 0;
     let totalPlanCount = 0;
