@@ -2,7 +2,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { CATEGORY_COLORS } from '../constants';
 import { TimeBlock, CategoryType, Category } from '../types';
-import { X, Brain, Coffee, Briefcase, Trash2, Edit2, Plus, ChevronDown, Check, Folder } from 'lucide-react';
+import { X, Brain, Coffee, Briefcase, Trash2, Edit2, Plus, ChevronDown, Check, Folder, GripHorizontal } from 'lucide-react';
 
 interface VerticalTimelineProps {
   plannedBlocks: TimeBlock[];
@@ -23,17 +23,26 @@ const gridOffset = 20; // Top padding to prevent label clipping
 // Add some bottom padding too
 const totalHeight = (endHour - startHour) * hourHeight + gridOffset + 50;
 
-// Helper to convert Y pixels to minutes from start of day (startHour)
+// Helper to convert Y pixels to minutes from start of grid (0 = 7:00 AM)
 const pixelsToMinutes = (px: number, hourHeight: number) => {
   return ((px - gridOffset) / hourHeight) * 60;
 };
 
-// Helper to convert minutes to HH:MM string
+// Helper to convert minutes to HH:MM string (relative to startHour)
 const minutesToTimeStr = (minutesFromStart: number, startHour: number) => {
-  const totalMinutes = startHour * 60 + minutesFromStart;
+  let totalMinutes = startHour * 60 + minutesFromStart;
+  // Clamp to 24h
+  totalMinutes = Math.max(0, Math.min(24 * 60 - 1, totalMinutes));
+  
   const h = Math.floor(totalMinutes / 60);
   const m = Math.floor(totalMinutes % 60);
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+};
+
+// Helper to parse HH:MM to minutes relative to startHour (e.g. 7:00 = 0)
+const timeStrToMinutes = (timeStr: string, startHour: number) => {
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h * 60 + m) - (startHour * 60);
 };
 
 // Helper to snap minutes to nearest 15
@@ -54,9 +63,18 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Interaction State
-  const [isDragging, setIsDragging] = useState(false);
+  const [interactionMode, setInteractionMode] = useState<'none' | 'create' | 'move' | 'resize'>('none');
+  
+  // Creation State
   const [dragStartY, setDragStartY] = useState<number | null>(null);
   const [dragEndY, setDragEndY] = useState<number | null>(null);
+
+  // Move/Resize State
+  const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
+  const [dragOffsetMinutes, setDragOffsetMinutes] = useState(0); // For moving: offset from block top
+  
+  // Temporary state for the block being moved/resized (live preview)
+  const [temporaryBlockState, setTemporaryBlockState] = useState<{ startTime: string; duration: number } | null>(null);
   
   // Context Menu State
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; blockId: string } | null>(null);
@@ -107,38 +125,67 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
   // --- Handlers ---
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    // If context menu is open, clicking anywhere closes it (handled by global listener), 
-    // but we also want to prevent drag start if we just clicked to close menu.
+    // 1. Check if we are interacting with existing blocks or context menus
     if (contextMenu) return;
-
     if (!isInteractive) return;
-
-    // Prevent drag start if clicking inside the popover
     if ((e.target as HTMLElement).closest('.create-popover')) return;
 
-    // Only trigger if clicking on the background grid, not existing blocks
+    // If we clicked a block handle, that logic is handled in handleBlockMouseDown/Resize
+    // We only proceed here if we are clicking the empty grid
     if ((e.target as HTMLElement).closest('.time-block')) return;
 
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    // Calculate Y relative to the scrolling container content
     const scrollTop = containerRef.current?.scrollTop || 0;
-    const clientY = e.clientY - rect.top; // Relative to viewport
-    const absoluteY = clientY + scrollTop; // Relative to total content height
+    const clientY = e.clientY - rect.top; 
+    const absoluteY = clientY + scrollTop;
 
+    setInteractionMode('create');
     setDragStartY(absoluteY);
     setDragEndY(absoluteY);
-    setIsDragging(true);
+    
     setIsPopoverOpen(false); // Close popover if open
-    setEditingBlockId(null); // Clear editing state
+    setEditingBlockId(null); 
     setBlockTitle('');
     setSelectedCategoryId('');
     setIsCategoryDropdownOpen(false);
   };
 
+  const handleBlockMouseDown = (e: React.MouseEvent, block: TimeBlock) => {
+      e.stopPropagation();
+      e.preventDefault();
+      
+      if (!isInteractive || viewMode !== 'plan') return;
+
+      const rect = containerRef.current!.getBoundingClientRect();
+      const scrollTop = containerRef.current!.scrollTop;
+      const clickY = e.clientY - rect.top + scrollTop;
+      
+      const clickMinutes = pixelsToMinutes(clickY, hourHeight);
+      const blockStartMinutes = timeStrToMinutes(block.startTime, startHour);
+
+      setInteractionMode('move');
+      setActiveBlockId(block.id);
+      setDragOffsetMinutes(clickMinutes - blockStartMinutes);
+      setTemporaryBlockState({ startTime: block.startTime, duration: block.durationMinutes });
+      setIsPopoverOpen(false);
+  };
+
+  const handleResizeMouseDown = (e: React.MouseEvent, block: TimeBlock) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      if (!isInteractive || viewMode !== 'plan') return;
+
+      setInteractionMode('resize');
+      setActiveBlockId(block.id);
+      setTemporaryBlockState({ startTime: block.startTime, duration: block.durationMinutes });
+      setIsPopoverOpen(false);
+  };
+
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isInteractive || !isDragging || dragStartY === null || !containerRef.current) return;
+    if (!isInteractive || interactionMode === 'none' || !containerRef.current) return;
 
     const rect = containerRef.current.getBoundingClientRect();
     const scrollTop = containerRef.current.scrollTop;
@@ -149,55 +196,103 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
     if (absoluteY < 0) absoluteY = 0;
     if (absoluteY > totalHeight) absoluteY = totalHeight;
 
-    setDragEndY(absoluteY);
+    if (interactionMode === 'create') {
+        if (dragStartY !== null) setDragEndY(absoluteY);
+    } 
+    else if (interactionMode === 'move' && temporaryBlockState) {
+        const mouseMinutes = pixelsToMinutes(absoluteY, hourHeight);
+        let newStartMinutes = snapToGrid(mouseMinutes - dragOffsetMinutes);
+        
+        // Boundaries
+        if (newStartMinutes < 0) newStartMinutes = 0;
+        // Don't let block go past end of day
+        const maxStart = (endHour - startHour) * 60 - temporaryBlockState.duration;
+        if (newStartMinutes > maxStart) newStartMinutes = maxStart;
+
+        const newStartTime = minutesToTimeStr(newStartMinutes, startHour);
+        setTemporaryBlockState(prev => ({ ...prev!, startTime: newStartTime }));
+    }
+    else if (interactionMode === 'resize' && temporaryBlockState) {
+        const mouseMinutes = pixelsToMinutes(absoluteY, hourHeight);
+        const startMinutes = timeStrToMinutes(temporaryBlockState.startTime, startHour);
+        
+        let newEndMinutes = snapToGrid(mouseMinutes);
+        let newDuration = newEndMinutes - startMinutes;
+
+        // Minimum duration 15m
+        if (newDuration < 15) newDuration = 15;
+        
+        setTemporaryBlockState(prev => ({ ...prev!, duration: newDuration }));
+    }
   };
 
   const handleMouseUp = () => {
-    if (!isInteractive || !isDragging || dragStartY === null || dragEndY === null) return;
+    if (!isInteractive || interactionMode === 'none') return;
 
-    setIsDragging(false);
+    // --- CREATE MODE ---
+    if (interactionMode === 'create' && dragStartY !== null && dragEndY !== null) {
+        // Calculate Start and End Times
+        let startPx = Math.min(dragStartY, dragEndY);
+        let endPx = Math.max(dragStartY, dragEndY);
 
-    // Calculate Start and End Times
-    let startPx = Math.min(dragStartY, dragEndY);
-    let endPx = Math.max(dragStartY, dragEndY);
+        // Filter out accidental clicks (must drag at least 10px)
+        if (endPx - startPx < 10) {
+            setInteractionMode('none');
+            setDragStartY(null);
+            setDragEndY(null);
+            return;
+        }
 
-    // Filter out accidental clicks (must drag at least 10px)
-    if (endPx - startPx < 10) {
-        setDragStartY(null);
-        setDragEndY(null);
-        return;
+        // Snap to 15m
+        let startMins = snapToGrid(pixelsToMinutes(startPx, hourHeight));
+        let endMins = snapToGrid(pixelsToMinutes(endPx, hourHeight));
+        
+        if (startMins < 0) startMins = 0;
+        if (endMins <= startMins) endMins = startMins + 15;
+
+        const startTime = minutesToTimeStr(startMins, startHour);
+        const endTime = minutesToTimeStr(endMins, startHour);
+        const duration = endMins - startMins;
+
+        // Prepare Draft
+        setDraftBlock({ start: startTime, end: endTime, duration });
+        setEditingBlockId(null);
+        setBlockTitle('');
+        setSelectedCategoryId('');
+        setIsBreakMode(false); 
+        
+        setPopoverPosition({ 
+            top: (startMins / 60) * hourHeight + gridOffset, 
+            left: 200 
+        });
+        
+        setIsPopoverOpen(true);
+    } 
+    
+    // --- MOVE / RESIZE MODE ---
+    else if ((interactionMode === 'move' || interactionMode === 'resize') && activeBlockId && temporaryBlockState && onUpdateBlock) {
+        // Commit changes
+        const originalBlock = plannedBlocks.find(b => b.id === activeBlockId);
+        if (originalBlock) {
+            const startMins = timeStrToMinutes(temporaryBlockState.startTime, startHour);
+            const endMins = startMins + temporaryBlockState.duration;
+            const endTimeStr = minutesToTimeStr(endMins, startHour);
+
+            onUpdateBlock({
+                ...originalBlock,
+                startTime: temporaryBlockState.startTime,
+                endTime: endTimeStr,
+                durationMinutes: temporaryBlockState.duration
+            });
+        }
     }
 
-    // Snap to 15m
-    let startMins = snapToGrid(pixelsToMinutes(startPx, hourHeight));
-    let endMins = snapToGrid(pixelsToMinutes(endPx, hourHeight));
-    
-    // Clamp negative values if user drags above the first line
-    if (startMins < 0) startMins = 0;
-
-    // Ensure at least 15 mins
-    if (endMins <= startMins) endMins = startMins + 15;
-
-    const startTime = minutesToTimeStr(startMins, startHour);
-    const endTime = minutesToTimeStr(endMins, startHour);
-    const duration = endMins - startMins;
-
-    // Prepare Draft
-    setDraftBlock({ start: startTime, end: endTime, duration });
-    setEditingBlockId(null);
-    setBlockTitle('');
-    setSelectedCategoryId('');
-    setIsBreakMode(false); // Default to Work mode
-    
-    // Position Popover
-    setPopoverPosition({ 
-        top: (startMins / 60) * hourHeight + gridOffset, 
-        left: 200 
-    });
-    
-    setIsPopoverOpen(true);
+    // Reset State
+    setInteractionMode('none');
     setDragStartY(null);
     setDragEndY(null);
+    setActiveBlockId(null);
+    setTemporaryBlockState(null);
   };
 
   const handleBlockContextMenu = (e: React.MouseEvent, blockId: string) => {
@@ -238,9 +333,8 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
                 end: block.endTime,
                 duration: block.durationMinutes
             });
-            // Calculate top position for the popover based on block start time
-            const [h, m] = block.startTime.split(':').map(Number);
-            const startMins = (h - startHour) * 60 + m;
+            
+            const startMins = timeStrToMinutes(block.startTime, startHour);
             
             setPopoverPosition({ 
                 top: (startMins / 60) * hourHeight + gridOffset, 
@@ -347,9 +441,9 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
 
   const hours = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
 
-  // Render Drag Ghost
-  const renderGhostBlock = () => {
-    if (!isDragging || dragStartY === null || dragEndY === null) return null;
+  // Render Drag Ghost for Creation
+  const renderCreationGhost = () => {
+    if (interactionMode !== 'create' || dragStartY === null || dragEndY === null) return null;
 
     let startPx = Math.min(dragStartY, dragEndY);
     let endPx = Math.max(dragStartY, dragEndY);
@@ -417,11 +511,19 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
 
       <div 
         ref={containerRef}
-        className={`relative flex-1 overflow-y-auto custom-scrollbar bg-[#0f1117] ${isInteractive ? 'cursor-crosshair' : ''}`}
+        className={`relative flex-1 overflow-y-auto custom-scrollbar bg-[#0f1117] ${isInteractive ? 'cursor-default' : ''}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => isDragging && setIsDragging(false)}
+        onMouseLeave={() => {
+            if (interactionMode !== 'none') {
+                // Cancel drag if leaving container
+                setInteractionMode('none');
+                setDragStartY(null);
+                setDragEndY(null);
+                setActiveBlockId(null);
+            }
+        }}
       >
         <div className="relative w-full" style={{ height: `${totalHeight}px` }}>
             
@@ -448,30 +550,58 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
             </div>
 
             {/* PLANNED BLOCKS */}
-            {plannedBlocks.map((block) => (
-                <div
-                    key={`plan-${block.id}`}
-                    onContextMenu={(e) => handleBlockContextMenu(e, block.id)}
-                    className={`time-block absolute left-20 right-4 rounded-lg flex flex-col justify-center px-3 z-10 transition-colors cursor-pointer select-none
-                      ${viewMode === 'plan' 
-                        ? `${CATEGORY_COLORS[block.type]} bg-opacity-20 border-l-4 border-opacity-100 hover:bg-opacity-30` 
-                        : 'border-2 border-dashed border-gray-600 bg-gray-800/30 opacity-70'
-                      }`}
-                    style={{
-                        top: `${getPosition(block.startTime)}px`,
-                        height: `${getHeight(block.durationMinutes)}px`,
-                        borderColor: viewMode === 'plan' 
-                          ? (block.type === 'focus' ? '#00FF94' : block.type === 'meeting' ? '#4D96FF' : block.type === 'break' ? '#FFB347' : '#A0A0A0') 
-                          : '#6b7280'
-                    }}
-                >
-                    <div className="flex justify-between items-center">
-                        <span className={`text-[10px] uppercase tracking-wider font-semibold truncate ${viewMode === 'plan' ? 'text-white' : 'text-gray-500'}`}>
-                            {block.title}
-                        </span>
+            {plannedBlocks.map((block) => {
+                const isMoving = activeBlockId === block.id && temporaryBlockState;
+                
+                // Use temporary state if moving/resizing, else block state
+                const startTime = isMoving ? temporaryBlockState.startTime : block.startTime;
+                const duration = isMoving ? temporaryBlockState.duration : block.durationMinutes;
+
+                return (
+                    <div
+                        key={`plan-${block.id}`}
+                        onMouseDown={(e) => handleBlockMouseDown(e, block)}
+                        onContextMenu={(e) => handleBlockContextMenu(e, block.id)}
+                        className={`time-block absolute left-20 right-4 rounded-lg flex flex-col justify-center px-3 z-10 transition-colors select-none group
+                          ${viewMode === 'plan' 
+                            ? `${CATEGORY_COLORS[block.type]} bg-opacity-20 border-l-4 border-opacity-100 hover:bg-opacity-30` 
+                            : 'border-2 border-dashed border-gray-600 bg-gray-800/30 opacity-70'
+                          }
+                          ${isMoving ? 'shadow-2xl opacity-90 scale-[1.01] z-50 cursor-move ring-1 ring-white/50' : 'cursor-pointer'}
+                        `}
+                        style={{
+                            top: `${getPosition(startTime)}px`,
+                            height: `${getHeight(duration)}px`,
+                            borderColor: viewMode === 'plan' 
+                              ? (block.type === 'focus' ? '#00FF94' : block.type === 'meeting' ? '#4D96FF' : block.type === 'break' ? '#FFB347' : '#A0A0A0') 
+                              : '#6b7280',
+                            transition: isMoving ? 'none' : 'top 0.2s, height 0.2s', // Smooth snap only when not dragging
+                        }}
+                    >
+                        <div className="flex justify-between items-center pointer-events-none">
+                            <span className={`text-[10px] uppercase tracking-wider font-semibold truncate ${viewMode === 'plan' ? 'text-white' : 'text-gray-500'}`}>
+                                {block.title}
+                            </span>
+                            {/* Time hint while dragging */}
+                            {isMoving && (
+                                <span className="text-[10px] font-mono bg-black/50 px-1 rounded text-white">
+                                    {startTime}
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Resize Handle (Bottom) */}
+                        {viewMode === 'plan' && !isMoving && (
+                            <div 
+                                className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize flex items-end justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                onMouseDown={(e) => handleResizeMouseDown(e, block)}
+                            >
+                                <div className="w-8 h-1 bg-white/30 rounded-full mb-0.5"></div>
+                            </div>
+                        )}
                     </div>
-                </div>
-            ))}
+                );
+            })}
 
             {/* ACTUAL BLOCKS (Review Mode Only) */}
             {viewMode === 'review' && actualBlocks.map((block) => (
@@ -497,7 +627,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
                 </div>
             ))}
 
-            {renderGhostBlock()}
+            {renderCreationGhost()}
 
             {/* CREATE/EDIT POPOVER */}
             {isPopoverOpen && (
