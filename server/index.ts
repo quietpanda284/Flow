@@ -325,8 +325,16 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log(`Database connected (${DB_DIALECT}).`);
     
-    // Using alter: true to update schema if it exists (adds 'date' column)
-    await sequelize.sync({ alter: true }); 
+    try {
+        // Using alter: true to update schema if it exists
+        // Wrapped in try/catch because SQLite + alter can be buggy with complex changes
+        await sequelize.sync({ alter: true }); 
+    } catch (syncError) {
+        console.warn("Sync with { alter: true } failed. Falling back to simple sync. (This is common with SQLite when schema changes conflict with existing data).");
+        console.error(syncError);
+        await sequelize.sync(); // Fallback
+    }
+
     await seedData();
     
     // Bind to 0.0.0.0 for better container compatibility

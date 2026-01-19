@@ -34,37 +34,42 @@ export default function App() {
   const dayName = today.toLocaleDateString('en-US', { weekday: 'long' });
   const fullDate = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
+  // Fetch logic extracted to function for reuse
+  const fetchData = async () => {
+    // Only show global loading on first load or manual refresh, not background updates
+    // setIsLoading(true); 
+    setConnectionError(false);
+    try {
+        const [cats, actual, planned, hist] = await Promise.all([
+            getCategories(),
+            getActualBlocks(todayStr),
+            getPlannedBlocks(todayStr),
+            getFocusHistory()
+        ]);
+        setCategories(cats);
+        setActualBlocks(actual);
+        setPlannedBlocks(planned);
+        setHistory(hist);
+        setShowWarning(false);
+    } catch (error) {
+        console.error("Failed to fetch data:", error);
+        setConnectionError(true);
+        setShowWarning(true);
+        // Only clear if it's a hard fail and we have no data
+        if (actualBlocks.length === 0) {
+             setCategories([]);
+             setActualBlocks([]);
+             setPlannedBlocks([]);
+             setHistory([]);
+        }
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   // Initial Fetch
   useEffect(() => {
-    const fetchData = async () => {
-        setIsLoading(true);
-        setConnectionError(false);
-        try {
-            // Fetch blocks for TODAY
-            const [cats, actual, planned, hist] = await Promise.all([
-                getCategories(),
-                getActualBlocks(todayStr),
-                getPlannedBlocks(todayStr),
-                getFocusHistory()
-            ]);
-            setCategories(cats);
-            setActualBlocks(actual);
-            setPlannedBlocks(planned);
-            setHistory(hist);
-            setShowWarning(false);
-        } catch (error) {
-            console.error("Failed to fetch data:", error);
-            setConnectionError(true);
-            setShowWarning(true);
-            // Reset to empty states
-            setCategories([]);
-            setActualBlocks([]);
-            setPlannedBlocks([]);
-            setHistory([]);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    setIsLoading(true); // Explicit loading for first mount
     fetchData();
   }, [currentPage]); 
 
@@ -128,6 +133,11 @@ export default function App() {
         setConnectionError(true);
         setShowWarning(true);
     }
+  };
+
+  // Callback for when timer completes
+  const handleTimerComplete = () => {
+      fetchData(); // Refresh data to show new block in timeline/trends
   };
 
   return (
@@ -245,7 +255,7 @@ export default function App() {
         <div className={`transition-opacity duration-300 ${currentPage === 'Focus' ? 'block opacity-100' : 'hidden opacity-0 h-0 overflow-hidden'}`}>
              <div className="flex items-center justify-center min-h-[600px] h-[calc(100vh-160px)]">
                 <div className="w-full max-w-3xl h-full">
-                    <FocusTimer />
+                    <FocusTimer onTimerComplete={handleTimerComplete} />
                 </div>
             </div>
         </div>

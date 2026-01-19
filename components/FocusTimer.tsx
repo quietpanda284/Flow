@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2 } from 'lucide-react';
-import { TimerState, CategoryType, Category } from '../types';
-import { getCategories, addCategory, deleteCategory } from '../services/api';
+import { TimerState, CategoryType, Category, TimeBlock } from '../types';
+import { getCategories, addCategory, deleteCategory, addTimeBlock } from '../services/api';
 
 type TimerMode = 'FOCUS' | 'SHORT_BREAK' | 'LONG_BREAK';
 
@@ -12,7 +12,11 @@ const MODES = {
   LONG_BREAK: { label: 'Long Break', minutes: 10, color: 'text-accent-break', bg: 'bg-accent-break', icon: Battery },
 };
 
-export const FocusTimer: React.FC = () => {
+interface FocusTimerProps {
+    onTimerComplete?: () => void;
+}
+
+export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete }) => {
   const [timerState, setTimerState] = useState<TimerState>(TimerState.IDLE);
   const [mode, setMode] = useState<TimerMode>('FOCUS');
   const [timeLeft, setTimeLeft] = useState(MODES.FOCUS.minutes * 60);
@@ -49,12 +53,65 @@ export const FocusTimer: React.FC = () => {
     }
   }, [timeLeft, timerState]);
 
+  // Helper to get formatted time string HH:MM
+  const getCurrentTimeStr = (date: Date) => {
+      return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  const saveSession = async () => {
+    const now = new Date();
+    const durationMinutes = MODES[mode].minutes;
+    
+    // Calculate start time based on duration
+    const startDate = new Date(now.getTime() - durationMinutes * 60000);
+    
+    const startTimeStr = getCurrentTimeStr(startDate);
+    const endTimeStr = getCurrentTimeStr(now);
+
+    const isFocus = mode === 'FOCUS';
+    
+    // Determine category props
+    let categoryId = 'custom';
+    let type: CategoryType = isFocus ? 'focus' : 'break';
+    let title = MODES[mode].label;
+
+    if (isFocus && activeCategory) {
+        categoryId = activeCategory.id;
+        title = activeCategory.name;
+        type = activeCategory.type;
+    }
+
+    const newBlock: TimeBlock = {
+        id: crypto.randomUUID(), // Temp ID, backend assigns real one
+        title: title,
+        app: 'Timer',
+        startTime: startTimeStr,
+        endTime: endTimeStr,
+        durationMinutes: durationMinutes,
+        type: type,
+        categoryId: categoryId,
+        isPlanned: false, // This is an actual record
+        date: new Date().toISOString().split('T')[0]
+    };
+
+    try {
+        await addTimeBlock(newBlock, false);
+        if (onTimerComplete) onTimerComplete();
+        console.log("Timer session saved successfully");
+    } catch (error) {
+        console.error("Failed to save timer session", error);
+    }
+  };
+
   useEffect(() => {
     if (timerState === TimerState.RUNNING) {
       timerRef.current = window.setInterval(() => {
         setTimeLeft((prev) => {
-          if (prev <= 0) {
+          if (prev <= 1) { // Hit 0
+            // Timer Complete Logic
+            clearInterval(timerRef.current!);
             setTimerState(TimerState.IDLE);
+            saveSession(); // Save the block
             return 0;
           }
           return prev - 1;
@@ -66,7 +123,7 @@ export const FocusTimer: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [timerState]);
+  }, [timerState, mode, activeCategory]); // Re-bind if dependencies change to ensure correct capture in saveSession
 
   const switchMode = (newMode: TimerMode) => {
     setMode(newMode);
