@@ -26,34 +26,13 @@ app.use((req, res, next) => {
 });
 
 app.use(cors({
-    origin: true, // Allow all origins for dev, or specify the frontend URL
+    origin: true, // Allow all origins for dev
     credentials: true // Allow cookies
 }) as any);
 app.use(express.json() as any);
 app.use(cookieParser() as any);
 
-// --- DATABASE CONNECTION ---
-let sequelize: Sequelize;
-
-console.log(`Initializing Database...`);
-if (DB_DIALECT === 'mysql') {
-    sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
-        host: DB_HOST,
-        port: DB_PORT,
-        dialect: 'mysql',
-        logging: false,
-        pool: { max: 5, min: 0, acquire: 60000, idle: 20000 },
-        dialectOptions: { connectTimeout: 60000 },
-    });
-} else {
-    sequelize = new Sequelize({
-        dialect: 'sqlite',
-        storage: DB_STORAGE,
-        logging: false
-    });
-}
-
-// --- MODELS ---
+// --- MODELS DECLARATION ---
 
 class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     declare id: CreationOptional<string>;
@@ -61,37 +40,11 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     declare passwordHash: string;
 }
 
-(User as any).init({
-    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    username: { type: DataTypes.STRING, allowNull: false, unique: true },
-    passwordHash: { type: DataTypes.STRING, allowNull: false }
-}, { sequelize, modelName: 'User' });
-
 class Category extends Model<InferAttributes<Category>, InferCreationAttributes<Category>> {
   declare id: CreationOptional<string>;
   declare name: string;
   declare type: 'focus' | 'meeting' | 'break' | 'other';
 }
-
-(Category as any).init({
-  id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true,
-  },
-  name: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    unique: true,
-  },
-  type: {
-    type: DataTypes.ENUM('focus', 'meeting', 'break', 'other'),
-    allowNull: false,
-  },
-}, {
-  sequelize,
-  modelName: 'Category',
-});
 
 class TimeBlock extends Model<InferAttributes<TimeBlock>, InferCreationAttributes<TimeBlock>> {
   declare id: CreationOptional<string>;
@@ -107,26 +60,34 @@ class TimeBlock extends Model<InferAttributes<TimeBlock>, InferCreationAttribute
   declare isPlanned: CreationOptional<boolean>;
 }
 
-(TimeBlock as any).init({
-  id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true,
-  },
-  title: { type: DataTypes.STRING, allowNull: false },
-  app: { type: DataTypes.STRING, allowNull: false, defaultValue: 'Manual' },
-  date: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },
-  startTime: { type: DataTypes.STRING, allowNull: false },
-  endTime: { type: DataTypes.STRING, allowNull: false },
-  durationMinutes: { type: DataTypes.INTEGER, allowNull: false },
-  type: { type: DataTypes.STRING, allowNull: false },
-  categoryId: { type: DataTypes.STRING, allowNull: true },
-  description: { type: DataTypes.TEXT, allowNull: true },
-  isPlanned: { type: DataTypes.BOOLEAN, defaultValue: false },
-}, {
-  sequelize,
-  modelName: 'TimeBlock',
-});
+// Helper to initialize models with a specific sequelize instance
+const initModels = (sequelize: Sequelize) => {
+    (User as any).init({
+        id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+        username: { type: DataTypes.STRING, allowNull: false, unique: true },
+        passwordHash: { type: DataTypes.STRING, allowNull: false }
+    }, { sequelize, modelName: 'User' });
+
+    (Category as any).init({
+        id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+        name: { type: DataTypes.STRING, allowNull: false, unique: true },
+        type: { type: DataTypes.ENUM('focus', 'meeting', 'break', 'other'), allowNull: false },
+    }, { sequelize, modelName: 'Category' });
+
+    (TimeBlock as any).init({
+        id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+        title: { type: DataTypes.STRING, allowNull: false },
+        app: { type: DataTypes.STRING, allowNull: false, defaultValue: 'Manual' },
+        date: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },
+        startTime: { type: DataTypes.STRING, allowNull: false },
+        endTime: { type: DataTypes.STRING, allowNull: false },
+        durationMinutes: { type: DataTypes.INTEGER, allowNull: false },
+        type: { type: DataTypes.STRING, allowNull: false },
+        categoryId: { type: DataTypes.STRING, allowNull: true },
+        description: { type: DataTypes.TEXT, allowNull: true },
+        isPlanned: { type: DataTypes.BOOLEAN, defaultValue: false },
+    }, { sequelize, modelName: 'TimeBlock' });
+};
 
 // --- MIDDLEWARE ---
 const verifyToken = (req: any, res: any, next: any) => {
@@ -250,9 +211,8 @@ const seedData = async () => {
 
 // --- ROUTES ---
 
-// Health Check
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', database: DB_DIALECT });
+    res.json({ status: 'ok', dialect: (sequelize as any).getDialect() });
 });
 
 // Auth Routes
@@ -267,12 +227,11 @@ app.post('/api/auth/login', async (req, res) => {
 
         const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
         
-        // IMPORTANT: httpOnly prevents XSS stealing the token
         res.cookie('token', token, { 
             httpOnly: true, 
-            secure: false, // Set to true in production with HTTPS
+            secure: false,
             sameSite: 'lax',
-            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+            maxAge: 7 * 24 * 60 * 60 * 1000 
         } as any);
 
         res.json({ success: true, user: { id: user.id, username: user.username } });
@@ -306,7 +265,7 @@ app.post('/api/auth/register', async (req, res) => {
         res.json({ success: true, user: { id: user.id, username: user.username } });
     } catch (err) {
         console.error("Registration Error:", err);
-        res.status(500).json({ error: 'Registration failed server-side' });
+        res.status(500).json({ error: 'Registration failed' });
     }
 });
 
@@ -382,7 +341,7 @@ app.delete('/api/categories/:id', verifyToken, async (req, res) => {
 // Time Blocks
 app.get('/api/blocks', verifyToken, async (req, res) => {
   try {
-    const { type, date } = req.query; // 'planned' or 'actual', 'YYYY-MM-DD'
+    const { type, date } = req.query; 
     const isPlanned = type === 'planned';
     const whereClause: any = { isPlanned };
     
@@ -456,10 +415,58 @@ app.get('/api/history', verifyToken, async (req, res) => {
 });
 
 // --- INIT ---
+
+let sequelize: Sequelize;
+
+const initializeDatabase = async () => {
+    let connected = false;
+
+    // 1. Try MySQL if configured
+    if (DB_DIALECT === 'mysql') {
+        console.log(`Attempting MySQL connection to ${DB_HOST}...`);
+        try {
+            const tempSequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
+                host: DB_HOST,
+                port: DB_PORT,
+                dialect: 'mysql',
+                logging: false,
+                pool: { max: 5, min: 0, acquire: 5000, idle: 10000 },
+                dialectOptions: { connectTimeout: 5000 },
+            });
+            await tempSequelize.authenticate();
+            sequelize = tempSequelize;
+            connected = true;
+            console.log('✅ Connected to MySQL');
+        } catch (err: any) {
+            console.warn(`⚠️ MySQL Connection Failed: ${err.message}`);
+            console.log('Switching to SQLite fallback...');
+        }
+    }
+
+    // 2. Fallback to SQLite
+    if (!connected) {
+        console.log(`Initializing SQLite at ${DB_STORAGE}...`);
+        sequelize = new Sequelize({
+            dialect: 'sqlite',
+            storage: DB_STORAGE,
+            logging: false
+        });
+        try {
+            await sequelize.authenticate();
+            console.log('✅ Connected to SQLite');
+        } catch (err) {
+            console.error('❌ SQLite Connection Failed:', err);
+            throw err; // Fatal error if even SQLite fails
+        }
+    }
+
+    // 3. Initialize Models
+    initModels(sequelize);
+};
+
 const startServer = async () => {
   try {
-    await sequelize.authenticate();
-    console.log(`Database connected (${DB_DIALECT}) on ${DB_HOST}:${DB_PORT}`);
+    await initializeDatabase();
     
     try {
         await sequelize.sync({ alter: true }); 
@@ -472,10 +479,11 @@ const startServer = async () => {
     await seedData();
     
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on http://0.0.0.0:${PORT}`);
+      console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
     });
   } catch (error) {
-    console.error('DATABASE CONNECTION FAILED', error);
+    console.error('SERVER STARTUP FAILED:', error);
+    process.exit(1);
   }
 };
 
