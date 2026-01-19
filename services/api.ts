@@ -11,7 +11,9 @@ const API_URL = '/api';
  * Helper to handle fetch with timeout and JSON parsing.
  */
 async function fetchWithTimeout(resource: string, options: RequestInit = {}) {
-  const { timeout = 5000 } = options as any;
+  // Increased default timeout to 15000ms (15s) to handle network latency 
+  // and database connection wake-up times over tunneled connections (ngrok).
+  const { timeout = 15000 } = options as any;
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   

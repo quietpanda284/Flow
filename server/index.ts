@@ -38,13 +38,26 @@ if (DB_DIALECT === 'mysql') {
         dialect: 'mysql',
         logging: false,
         pool: {
-            max: 10,
+            max: 5, // Reduced max connections to prevent overloading weak networks
             min: 0,
-            acquire: 30000,
-            idle: 10000
+            acquire: 60000, // Increased to 60s to allow time for reconnection
+            idle: 20000     // Close idle connections after 20s to avoid stale TCP issues
         },
         dialectOptions: {
-            connectTimeout: 60000 // Increase connection timeout for slower networks
+            connectTimeout: 60000
+        },
+        retry: {
+            match: [
+                /SequelizeConnectionError/,
+                /SequelizeConnectionRefusedError/,
+                /SequelizeHostNotFoundError/,
+                /SequelizeHostNotReachableError/,
+                /InvalidConnectionError/,
+                /ConnectionTerminatedError/,
+                /ECONNRESET/,
+                /ETIMEDOUT/
+            ],
+            max: 3 // Retry up to 3 times on connection failure
         }
     });
 } else {

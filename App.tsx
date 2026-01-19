@@ -39,9 +39,8 @@ export default function App() {
   const fullDate = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   // Fetch logic extracted to function for reuse
-  const fetchData = async () => {
-    // Only show global loading on first load or manual refresh, not background updates
-    // setIsLoading(true); 
+  const fetchData = async (background = false) => {
+    if (!background) setIsLoading(true);
     setConnectionError(false);
     try {
         const [cats, actual, planned, hist] = await Promise.all([
@@ -58,23 +57,26 @@ export default function App() {
     } catch (error) {
         console.error("Failed to fetch data:", error);
         setConnectionError(true);
-        setShowWarning(true);
-        // Only clear if it's a hard fail and we have no data
-        if (actualBlocks.length === 0) {
-             setCategories([]);
-             setActualBlocks([]);
-             setPlannedBlocks([]);
-             setHistory([]);
-        }
+        if (!background) setShowWarning(true);
+        // We do NOT clear data on error to prevent flickering if just a transient failure
     } finally {
         setIsLoading(false);
     }
   };
 
-  // Initial Fetch
+  // Initial Fetch & Auto-Refresh (Keep-Alive)
   useEffect(() => {
-    setIsLoading(true); // Explicit loading for first mount
-    fetchData();
+    fetchData(); // Initial load
+
+    // Poll every 30 seconds to keep the ngrok tunnel and DB connection active.
+    // This prevents the "idle disconnect" issue common with tunneling services.
+    const intervalId = setInterval(() => {
+        // Only poll if not currently editing (handled loosely by checking page, 
+        // but strictly speaking safe because we only overwrite lists)
+        fetchData(true);
+    }, 30000); 
+
+    return () => clearInterval(intervalId);
   }, [currentPage]); 
 
   // Calculate advanced schedule metrics
