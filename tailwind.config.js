@@ -10,7 +10,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        sans: ['"Bebas Neue Pro"', '"Bebas Neue"', 'Inter', 'sans-serif'],
       },
       colors: {
         background: '#0f1117',
