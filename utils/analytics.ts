@@ -5,6 +5,7 @@ export const formatDuration = (minutes: number): string => {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   if (h === 0) return `${m}m`;
+  if (m === 0 && h === 0) return `0m`;
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
 };
@@ -87,4 +88,63 @@ export const getPeakFocusHour = (blocks: TimeBlock[]): string => {
  */
 export const getTotalFocusMinutes = (blocks: TimeBlock[]): number => {
     return blocks.filter(b => b.type === 'focus').reduce((acc, b) => acc + b.durationMinutes, 0);
+};
+
+/**
+ * Helper to convert "HH:MM" to minutes from start of day.
+ */
+const timeToMinutes = (time: string): number => {
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
+};
+
+/**
+ * Calculates high-fidelity metrics comparing Planned vs Actual time blocks.
+ * Uses a bitmask approach to handle overlaps correctly.
+ */
+export const calculateScheduleMetrics = (planned: TimeBlock[], actual: TimeBlock[]) => {
+    const MINUTES_IN_DAY = 24 * 60;
+    const planMap = new Uint8Array(MINUTES_IN_DAY); // 0 or 1
+    const actMap = new Uint8Array(MINUTES_IN_DAY);  // 0 or 1
+    
+    // Helper to fill map
+    const fill = (blocks: TimeBlock[], map: Uint8Array) => {
+       blocks.forEach(b => {
+           const start = timeToMinutes(b.startTime);
+           const end = start + b.durationMinutes;
+           for(let i=start; i<end && i<MINUTES_IN_DAY; i++) {
+               map[i] = 1;
+           }
+       });
+    };
+
+    fill(planned, planMap);
+    fill(actual, actMap);
+
+    let overlapCount = 0;
+    let planCount = 0;
+    let actCount = 0;
+
+    for(let i=0; i<MINUTES_IN_DAY; i++) {
+        if (planMap[i]) planCount++;
+        if (actMap[i]) actCount++;
+        if (planMap[i] && actMap[i]) overlapCount++;
+    }
+
+    // Missed = Planned minutes that were NOT covered by actual
+    const missedMinutes = planCount - overlapCount;
+    
+    // Unplanned = Actual minutes that were NOT in the plan
+    const unplannedMinutes = actCount - overlapCount;
+    
+    // Strict Adherence = % of Plan that was actually executed
+    const adherenceRate = planCount > 0 ? Math.round((overlapCount / planCount) * 100) : 0;
+    
+    return {
+        missedMinutes,
+        unplannedMinutes,
+        adherenceRate,
+        totalPlannedMinutes: planCount,
+        totalActualMinutes: actCount
+    };
 };

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { MetricsBar } from './components/MetricsBar';
 import { CategoryBreakdown } from './components/CategoryBreakdown';
@@ -11,7 +11,7 @@ import { SettingsPage } from './components/SettingsPage';
 import { ConnectionWarning } from './components/ConnectionWarning';
 import { TimeBlock, Category } from './types';
 import { getCategories, getActualBlocks, getPlannedBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock, getFocusHistory } from './services/api';
-import { getPeakFocusHour, getTotalFocusMinutes, formatDuration } from './utils/analytics';
+import { getPeakFocusHour, getTotalFocusMinutes, formatDuration, calculateScheduleMetrics } from './utils/analytics';
 import { Loader2 } from 'lucide-react';
 
 export default function App() {
@@ -68,16 +68,18 @@ export default function App() {
     fetchData();
   }, [currentPage]); 
 
-  // Simple stats calculation for the new metrics bar
-  const totalPlannedMinutes = plannedBlocks.reduce((acc, curr) => acc + curr.durationMinutes, 0);
-  const totalActualMinutes = actualBlocks.reduce((acc, curr) => acc + curr.durationMinutes, 0);
+  // Calculate advanced schedule metrics
+  const { 
+    missedMinutes, 
+    unplannedMinutes, 
+    adherenceRate,
+    totalPlannedMinutes,
+    totalActualMinutes 
+  } = useMemo(() => calculateScheduleMetrics(plannedBlocks, actualBlocks), [plannedBlocks, actualBlocks]);
   
   // Dynamic Trends Data
   const currentFocusMinutes = getTotalFocusMinutes(actualBlocks);
   const peakFocusHour = getPeakFocusHour(actualBlocks);
-  
-  // Calculate Adherence
-  const adherenceRate = totalPlannedMinutes > 0 ? Math.min(100, Math.round((totalActualMinutes / totalPlannedMinutes) * 100)) : 0;
 
   const handleAddBlock = async (newBlock: TimeBlock) => {
     // Add today's date to block
@@ -175,6 +177,8 @@ export default function App() {
                 <MetricsBar 
                     plannedMinutes={totalPlannedMinutes} 
                     actualMinutes={totalActualMinutes}
+                    missedMinutes={missedMinutes}
+                    unplannedMinutes={unplannedMinutes}
                     adherenceRate={adherenceRate}
                 />
                 

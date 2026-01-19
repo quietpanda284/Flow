@@ -1,30 +1,31 @@
+
 import React from 'react';
 import { Target, Activity } from 'lucide-react';
+import { formatDuration } from '../utils/analytics';
 
 interface MetricsBarProps {
   plannedMinutes: number;
   actualMinutes: number;
+  missedMinutes: number;
+  unplannedMinutes: number;
   adherenceRate: number; // 0-100
 }
 
-const formatDuration = (minutes: number) => {
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    return `${h}h ${m}m`;
-};
-
-export const MetricsBar: React.FC<MetricsBarProps> = ({ plannedMinutes, actualMinutes, adherenceRate }) => {
+export const MetricsBar: React.FC<MetricsBarProps> = ({ 
+    plannedMinutes, 
+    actualMinutes, 
+    missedMinutes,
+    unplannedMinutes,
+    adherenceRate 
+}) => {
   const ratio = plannedMinutes > 0 ? (actualMinutes / plannedMinutes) * 100 : 0;
   
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
       {/* Commitment Ratio (Work Volume) */}
       <div className="bg-card border border-border rounded-xl p-5 flex flex-col justify-center relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Target size={64} className="text-accent-focus" />
-        </div>
         
-        <div className="flex justify-between items-end mb-2">
+        <div className="flex justify-between items-end mb-2 relative z-10">
             <div>
                 <h3 className="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-1">Commitment Ratio</h3>
                 <div className="flex items-baseline gap-2">
@@ -49,9 +50,6 @@ export const MetricsBar: React.FC<MetricsBarProps> = ({ plannedMinutes, actualMi
                 className="h-full bg-gradient-to-r from-accent-focus to-emerald-600 transition-all duration-1000 ease-out" 
                 style={{ width: `${Math.min(ratio, 100)}%` }}
             />
-            {/* The Target Line (always at 100% of the bar width if we treat bar as Plan, but here we treat bar as max(Plan, Actual). 
-                Let's simplify: Bar is 0-100% of Plan. If over 100, it stays full. 
-            */}
         </div>
       </div>
 
@@ -61,7 +59,7 @@ export const MetricsBar: React.FC<MetricsBarProps> = ({ plannedMinutes, actualMi
             <Activity size={64} className="text-purple-400" />
         </div>
 
-        <div className="flex justify-between items-center h-full">
+        <div className="flex justify-between items-center h-full relative z-10">
             <div>
                  <h3 className="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-2">Adherence Rate</h3>
                  <div className="flex items-center gap-3">
@@ -95,11 +93,11 @@ export const MetricsBar: React.FC<MetricsBarProps> = ({ plannedMinutes, actualMi
             <div className="space-y-2 text-right">
                 <div className="text-xs">
                     <span className="text-gray-500 block">Missed Blocks</span>
-                    <span className="text-white font-mono">1.5h</span>
+                    <span className="text-white font-mono">{formatDuration(missedMinutes)}</span>
                 </div>
                 <div className="text-xs">
                     <span className="text-gray-500 block">Unplanned Work</span>
-                    <span className="text-white font-mono text-accent-break">45m</span>
+                    <span className="text-white font-mono text-accent-break">{formatDuration(unplannedMinutes)}</span>
                 </div>
             </div>
         </div>

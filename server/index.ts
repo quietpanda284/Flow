@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import { Sequelize, DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOptional, Op } from 'sequelize';
@@ -14,7 +13,7 @@ const DB_HOST = process.env.DB_HOST || 'localhost';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json() as any);
 
 // --- DATABASE CONNECTION ---
 let sequelize: Sequelize;
