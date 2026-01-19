@@ -71,6 +71,9 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
   const [blockTitle, setBlockTitle] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  
+  // NEW: Mode for creating blocks (Work vs Break)
+  const [isBreakMode, setIsBreakMode] = useState(false);
 
   // Current Time State
   const [currentTime, setCurrentTime] = useState(() => {
@@ -184,6 +187,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
     setEditingBlockId(null);
     setBlockTitle('');
     setSelectedCategoryId('');
+    setIsBreakMode(false); // Default to Work mode
     
     // Position Popover
     setPopoverPosition({ 
@@ -223,6 +227,12 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
             setEditingBlockId(block.id);
             setBlockTitle(block.title);
             setSelectedCategoryId(block.categoryId);
+            
+            // Determine mode
+            const cat = categories.find(c => c.id === block.categoryId);
+            const isBreak = cat ? cat.type === 'break' : block.type === 'break';
+            setIsBreakMode(isBreak);
+
             setDraftBlock({
                 start: block.startTime,
                 end: block.endTime,
@@ -255,6 +265,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
     setEditingBlockId(null);
     setBlockTitle('');
     setSelectedCategoryId('');
+    setIsBreakMode(false);
     
     setPopoverPosition({
         top: (startMins / 60) * hourHeight + gridOffset,
@@ -358,6 +369,11 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
   // Get selected category object for display
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
 
+  // Filter categories for Dropdown based on mode
+  const filteredCategories = categories.filter(c => 
+      isBreakMode ? c.type === 'break' : c.type !== 'break'
+  );
+
   return (
     <div className="bg-card border border-border rounded-xl flex flex-col h-full relative overflow-hidden">
       <div className="flex justify-between items-center p-6 border-b border-border bg-card z-20 shadow-sm">
@@ -432,7 +448,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
                         top: `${getPosition(block.startTime)}px`,
                         height: `${getHeight(block.durationMinutes)}px`,
                         borderColor: viewMode === 'plan' 
-                          ? (block.type === 'focus' ? '#00FF94' : block.type === 'meeting' ? '#4D96FF' : '#A0A0A0') 
+                          ? (block.type === 'focus' ? '#00FF94' : block.type === 'meeting' ? '#4D96FF' : block.type === 'break' ? '#FFB347' : '#A0A0A0') 
                           : '#6b7280'
                     }}
                 >
@@ -452,7 +468,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
                     style={{
                         top: `${getPosition(block.startTime)}px`,
                         height: `${getHeight(block.durationMinutes)}px`,
-                        borderColor: block.type === 'focus' ? '#00FF94' : block.type === 'meeting' ? '#4D96FF' : '#A0A0A0'
+                        borderColor: block.type === 'focus' ? '#00FF94' : block.type === 'meeting' ? '#4D96FF' : block.type === 'break' ? '#FFB347' : '#A0A0A0'
                     }}
                 >
                     <div className="flex justify-between items-center">
@@ -492,7 +508,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
                             <input
                                 autoFocus
                                 type="text"
-                                placeholder="What are you planning?"
+                                placeholder={isBreakMode ? "Break details..." : "What are you planning?"}
                                 className="w-full bg-transparent border-b border-gray-700 pb-2 text-sm text-white placeholder-gray-600 outline-none focus:border-accent-focus transition-colors"
                                 value={blockTitle}
                                 onChange={handleTitleChange}
@@ -502,7 +518,21 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
 
                         {/* Category Select */}
                         <div className="relative">
-                            <label className="text-[10px] uppercase text-gray-500 font-semibold tracking-wider mb-1.5 block">Category</label>
+                            <div className="flex items-center gap-2 mb-1.5">
+                                 <button
+                                    onClick={() => { setIsBreakMode(false); setSelectedCategoryId(''); }}
+                                    className={`text-[10px] uppercase font-bold tracking-wider transition-colors ${!isBreakMode ? 'text-accent-focus' : 'text-gray-600 hover:text-gray-400'}`}
+                                 >
+                                    Category
+                                 </button>
+                                 <span className="text-gray-700 text-[10px] font-bold">/</span>
+                                 <button
+                                    onClick={() => { setIsBreakMode(true); setSelectedCategoryId(''); }}
+                                    className={`text-[10px] uppercase font-bold tracking-wider transition-colors ${isBreakMode ? 'text-accent-break' : 'text-gray-600 hover:text-gray-400'}`}
+                                 >
+                                    Break
+                                 </button>
+                            </div>
                             
                             <button 
                                 onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
@@ -515,7 +545,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
                                             <span>{selectedCategory.name}</span>
                                         </>
                                     ) : (
-                                        <span className="italic">Select a category...</span>
+                                        <span className="italic">{isBreakMode ? 'Select break type...' : 'Select a category...'}</span>
                                     )}
                                 </div>
                                 <ChevronDown size={14} className={`transition-transform duration-200 ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
@@ -523,8 +553,8 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
 
                             {isCategoryDropdownOpen && (
                                 <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-lg shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto custom-scrollbar">
-                                    {categories.length > 0 ? (
-                                        categories.map((cat) => (
+                                    {filteredCategories.length > 0 ? (
+                                        filteredCategories.map((cat) => (
                                             <button
                                                 key={cat.id}
                                                 onClick={() => {
@@ -539,7 +569,9 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
                                             </button>
                                         ))
                                     ) : (
-                                        <div className="p-3 text-center text-xs text-gray-500">No categories found.</div>
+                                        <div className="p-3 text-center text-xs text-gray-500">
+                                            {isBreakMode ? 'No break categories.' : 'No categories found.'}
+                                        </div>
                                     )}
                                 </div>
                             )}
