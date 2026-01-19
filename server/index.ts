@@ -14,7 +14,7 @@ const DB_HOST = process.env.DB_HOST || 'localhost';
 
 const app = express();
 app.use(cors());
-app.use(express.json() as express.RequestHandler);
+app.use(express.json());
 
 // --- DATABASE CONNECTION ---
 let sequelize: Sequelize;
