@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2 } from 'lucide-react';
+import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2, Zap } from 'lucide-react';
 import { TimerState, CategoryType, Category, TimeBlock } from '../types';
 import { getCategories, addCategory, deleteCategory, addTimeBlock } from '../services/api';
 
@@ -14,9 +14,10 @@ const MODES = {
 
 interface FocusTimerProps {
     onTimerComplete?: () => void;
+    isDevMode?: boolean;
 }
 
-export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete }) => {
+export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMode = false }) => {
   const [timerState, setTimerState] = useState<TimerState>(TimerState.IDLE);
   const [mode, setMode] = useState<TimerMode>('FOCUS');
   const [timeLeft, setTimeLeft] = useState(MODES.FOCUS.minutes * 60);
@@ -100,6 +101,49 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete }) => {
         console.log("Timer session saved successfully");
     } catch (error) {
         console.error("Failed to save timer session", error);
+    }
+  };
+
+  const handleSimulateSession = async () => {
+    const now = new Date();
+    const durationMinutes = 25;
+    
+    // Calculate start time based on duration
+    const startDate = new Date(now.getTime() - durationMinutes * 60000);
+    
+    const startTimeStr = getCurrentTimeStr(startDate);
+    const endTimeStr = getCurrentTimeStr(now);
+    
+    // Use current settings or defaults
+    let categoryId = 'custom';
+    let type: CategoryType = 'focus';
+    let title = 'Simulated Focus';
+
+    if (activeCategory) {
+        categoryId = activeCategory.id;
+        title = activeCategory.name;
+        type = activeCategory.type;
+    }
+
+    const newBlock: TimeBlock = {
+        id: crypto.randomUUID(), 
+        title: title,
+        app: 'Dev Simulation',
+        startTime: startTimeStr,
+        endTime: endTimeStr,
+        durationMinutes: durationMinutes,
+        type: type,
+        categoryId: categoryId,
+        isPlanned: false, 
+        date: new Date().toISOString().split('T')[0]
+    };
+
+    try {
+        await addTimeBlock(newBlock, false);
+        if (onTimerComplete) onTimerComplete();
+        console.log("Simulated 25m session saved");
+    } catch (error) {
+        console.error("Failed to save simulated session", error);
     }
   };
 
@@ -344,6 +388,19 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete }) => {
             <Square size={22} fill={timerState !== TimerState.IDLE ? "currentColor" : "none"} /> Stop
         </button>
       </div>
+
+      {/* Dev Mode Simulation Button */}
+      {isDevMode && (
+        <button 
+            onClick={handleSimulateSession}
+            className="absolute bottom-4 left-4 z-50 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 text-xs font-mono rounded hover:bg-yellow-500/20 transition-colors flex items-center gap-2"
+            title="Simulate a completed 25m session immediately"
+        >
+            <Zap size={12} />
+            DEV: SIM 25M
+        </button>
+      )}
+
     </div>
   );
 };
