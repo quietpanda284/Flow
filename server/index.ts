@@ -1,6 +1,7 @@
+
 import express from 'express';
 import cors from 'cors';
-import { Sequelize, DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOptional } from 'sequelize';
+import { Sequelize, DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOptional, Op } from 'sequelize';
 
 // --- CONFIGURATION ---
 const PORT = 3006;
@@ -13,11 +14,9 @@ const DB_HOST = process.env.DB_HOST || 'localhost';
 
 const app = express();
 app.use(cors());
-// Fix: Cast express.json() to any to avoid type mismatch with app.use
-app.use(express.json() as any);
+app.use(express.json() as express.RequestHandler);
 
 // --- DATABASE CONNECTION ---
-// Fallback to SQLite if no specific MySQL env vars are present to ensure the app runs out of the box.
 let sequelize: Sequelize;
 
 if (DB_DIALECT === 'mysql') {
@@ -39,10 +38,10 @@ if (DB_DIALECT === 'mysql') {
 class Category extends Model<InferAttributes<Category>, InferCreationAttributes<Category>> {
   declare id: CreationOptional<string>;
   declare name: string;
-  declare type: string;
+  declare type: 'focus' | 'meeting' | 'break' | 'other';
 }
 
-Category.init({
+(Category as any).init({
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -66,6 +65,7 @@ class TimeBlock extends Model<InferAttributes<TimeBlock>, InferCreationAttribute
   declare id: CreationOptional<string>;
   declare title: string;
   declare app: CreationOptional<string>;
+  declare date: string; // YYYY-MM-DD
   declare startTime: string;
   declare endTime: string;
   declare durationMinutes: number;
@@ -75,7 +75,7 @@ class TimeBlock extends Model<InferAttributes<TimeBlock>, InferCreationAttribute
   declare isPlanned: CreationOptional<boolean>;
 }
 
-TimeBlock.init({
+(TimeBlock as any).init({
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -83,11 +83,12 @@ TimeBlock.init({
   },
   title: { type: DataTypes.STRING, allowNull: false },
   app: { type: DataTypes.STRING, allowNull: false, defaultValue: 'Manual' },
+  date: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },
   startTime: { type: DataTypes.STRING, allowNull: false },
   endTime: { type: DataTypes.STRING, allowNull: false },
   durationMinutes: { type: DataTypes.INTEGER, allowNull: false },
   type: { type: DataTypes.STRING, allowNull: false },
-  categoryId: { type: DataTypes.STRING, allowNull: true }, // Loose coupling for now
+  categoryId: { type: DataTypes.STRING, allowNull: true },
   description: { type: DataTypes.TEXT, allowNull: true },
   isPlanned: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, {
@@ -95,14 +96,18 @@ TimeBlock.init({
   modelName: 'TimeBlock',
 });
 
+// --- HELPER ---
+const getTodayStr = () => new Date().toISOString().split('T')[0];
+
 // --- SEEDER ---
 const seedData = async () => {
-  const catCount = await Category.count();
+  const catCount = await (Category as any).count();
   if (catCount === 0) {
     console.log('Seeding Database...');
-    
+    const today = getTodayStr();
+
     // Create Categories
-    await Category.bulkCreate([
+    await (Category as any).bulkCreate([
       { id: 'cat_1', name: 'Development', type: 'focus' },
       { id: 'cat_2', name: 'Collaboration', type: 'meeting' },
       { id: 'cat_4', name: 'Breaks', type: 'break' },
@@ -110,10 +115,11 @@ const seedData = async () => {
     ]);
 
     // Create Planned Blocks
-    await TimeBlock.bulkCreate([
+    await (TimeBlock as any).bulkCreate([
       {
         title: 'Morning Deep Work',
         app: 'VS Code',
+        date: today,
         startTime: '09:00',
         endTime: '11:00',
         durationMinutes: 120,
@@ -125,6 +131,7 @@ const seedData = async () => {
       {
         title: 'Team Standup',
         app: 'Zoom',
+        date: today,
         startTime: '11:00',
         endTime: '11:30',
         durationMinutes: 30,
@@ -135,6 +142,7 @@ const seedData = async () => {
       {
         title: 'Lunch',
         app: 'Offline',
+        date: today,
         startTime: '12:00',
         endTime: '13:00',
         durationMinutes: 60,
@@ -145,10 +153,11 @@ const seedData = async () => {
     ]);
 
     // Create Actual Blocks
-    await TimeBlock.bulkCreate([
+    await (TimeBlock as any).bulkCreate([
       {
         title: 'Deep Work: Backend API',
         app: 'VS Code',
+        date: today,
         startTime: '09:15',
         endTime: '11:00',
         durationMinutes: 105,
@@ -159,6 +168,7 @@ const seedData = async () => {
       {
         title: 'Daily Standup',
         app: 'Zoom',
+        date: today,
         startTime: '11:00',
         endTime: '11:35',
         durationMinutes: 35,
@@ -183,8 +193,8 @@ app.get('/api/health', (req, res) => {
 // Admin / Test Routes
 app.post('/api/reset', async (req, res) => {
     try {
-        await TimeBlock.destroy({ where: {}, truncate: true });
-        await Category.destroy({ where: {}, truncate: true });
+        await (TimeBlock as any).destroy({ where: {}, truncate: true });
+        await (Category as any).destroy({ where: {}, truncate: true });
         res.json({ success: true, message: 'Database reset complete.' });
     } catch (err) {
         console.error('Reset failed:', err);
@@ -205,7 +215,7 @@ app.post('/api/seed', async (req, res) => {
 // Categories
 app.get('/api/categories', async (req, res) => {
   try {
-    const categories = await Category.findAll();
+    const categories = await (Category as any).findAll();
     res.json(categories);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch categories' });
@@ -215,7 +225,7 @@ app.get('/api/categories', async (req, res) => {
 app.post('/api/categories', async (req, res) => {
   try {
     const { name, type } = req.body;
-    const category = await Category.create({ name, type });
+    const category = await (Category as any).create({ name, type });
     res.json(category);
   } catch (err) {
     res.status(400).json({ error: 'Failed to create category' });
@@ -224,7 +234,7 @@ app.post('/api/categories', async (req, res) => {
 
 app.delete('/api/categories/:id', async (req, res) => {
   try {
-    await Category.destroy({ where: { id: req.params.id } });
+    await (Category as any).destroy({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete category' });
@@ -234,11 +244,17 @@ app.delete('/api/categories/:id', async (req, res) => {
 // Time Blocks
 app.get('/api/blocks', async (req, res) => {
   try {
-    const { type } = req.query; // 'planned' or 'actual'
+    const { type, date } = req.query; // 'planned' or 'actual', 'YYYY-MM-DD'
     const isPlanned = type === 'planned';
+    const whereClause: any = { isPlanned };
     
-    const blocks = await TimeBlock.findAll({
-      where: { isPlanned },
+    // Only filter by date if provided, otherwise return all (or default to today in UI)
+    if (date) {
+        whereClause.date = date;
+    }
+
+    const blocks = await (TimeBlock as any).findAll({
+      where: whereClause,
       order: [['startTime', 'ASC']]
     });
     res.json(blocks);
@@ -249,7 +265,11 @@ app.get('/api/blocks', async (req, res) => {
 
 app.post('/api/blocks', async (req, res) => {
   try {
-    const block = await TimeBlock.create(req.body);
+    const { date, ...rest } = req.body;
+    // Ensure date is set, otherwise default to today
+    const blockDate = date || getTodayStr();
+    
+    const block = await (TimeBlock as any).create({ ...rest, date: blockDate });
     res.json(block);
   } catch (err) {
     res.status(400).json({ error: 'Failed to create block' });
@@ -258,7 +278,7 @@ app.post('/api/blocks', async (req, res) => {
 
 app.put('/api/blocks/:id', async (req, res) => {
     try {
-        await TimeBlock.update(req.body, { where: { id: req.params.id } });
+        await (TimeBlock as any).update(req.body, { where: { id: req.params.id } });
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'Failed to update block'});
@@ -267,10 +287,35 @@ app.put('/api/blocks/:id', async (req, res) => {
 
 app.delete('/api/blocks/:id', async (req, res) => {
     try {
-        await TimeBlock.destroy({ where: { id: req.params.id } });
+        await (TimeBlock as any).destroy({ where: { id: req.params.id } });
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'Failed to delete block'});
+    }
+});
+
+// History Endpoint for Trends
+app.get('/api/history', async (req, res) => {
+    try {
+        // Fetch all actual blocks, aggregated by date
+        const blocks = await (TimeBlock as any).findAll({
+            where: { 
+                isPlanned: false, 
+                type: 'focus' // Only count focus time for the heatmap
+            },
+            attributes: [
+                'date',
+                [sequelize.fn('SUM', sequelize.col('durationMinutes')), 'totalMinutes']
+            ],
+            group: ['date'],
+            raw: true
+        });
+        
+        // Transform result: [{ date: '2023-10-24', totalMinutes: 120 }, ...]
+        res.json(blocks);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to fetch history' });
     }
 });
 
@@ -280,7 +325,9 @@ const startServer = async () => {
     // Attempt to connect to DB
     await sequelize.authenticate();
     console.log(`Database connected (${DB_DIALECT}).`);
-    await sequelize.sync(); 
+    
+    // Using alter: true to update schema if it exists (adds 'date' column)
+    await sequelize.sync({ alter: true }); 
     await seedData();
     
     // Bind to 0.0.0.0 for better container compatibility

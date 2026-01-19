@@ -53,3 +53,38 @@ export const calculateCategoryStats = (
 
   return results;
 };
+
+/**
+ * Calculates the hour of the day with the most 'focus' type activity.
+ */
+export const getPeakFocusHour = (blocks: TimeBlock[]): string => {
+  const focusBlocks = blocks.filter(b => b.type === 'focus');
+  if (focusBlocks.length === 0) return 'N/A';
+
+  // Array representing 24 hours of the day
+  const hourCounts = new Array(24).fill(0);
+
+  focusBlocks.forEach(block => {
+    const startHour = parseInt(block.startTime.split(':')[0], 10);
+    // Simple heuristic: attribute duration to the start hour
+    // A more complex version would distribute minutes across crossing hours
+    hourCounts[startHour] += block.durationMinutes;
+  });
+
+  const maxMinutes = Math.max(...hourCounts);
+  if (maxMinutes === 0) return 'N/A';
+  
+  const peakHour = hourCounts.indexOf(maxMinutes);
+  
+  // Format to 12h AM/PM
+  const ampm = peakHour >= 12 ? 'PM' : 'AM';
+  const displayHour = peakHour % 12 || 12; // Convert 0 to 12
+  return `${displayHour}:00 ${ampm}`;
+};
+
+/**
+ * Calculates total minutes spent on 'focus' type blocks.
+ */
+export const getTotalFocusMinutes = (blocks: TimeBlock[]): number => {
+    return blocks.filter(b => b.type === 'focus').reduce((acc, b) => acc + b.durationMinutes, 0);
+};

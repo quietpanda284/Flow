@@ -10,7 +10,7 @@ import {
   Map
 } from 'lucide-react';
 
-// 1. Define the Master Categories
+// 1. Define the Master Categories (Used for defaults/seeds, but not fallback display)
 export const MASTER_CATEGORIES: Category[] = [
   { id: 'cat_1', name: 'Development', type: 'focus' },
   { id: 'cat_2', name: 'Collaboration', type: 'meeting' },
@@ -18,138 +18,11 @@ export const MASTER_CATEGORIES: Category[] = [
   { id: 'cat_5', name: 'Admin', type: 'other' },
 ];
 
-// 2. The Plan (Intent)
-export const MOCK_PLANNED_BLOCKS: TimeBlock[] = [
-    {
-        id: 'p1',
-        title: 'Morning Deep Work',
-        app: 'VS Code',
-        startTime: '09:00',
-        endTime: '11:00',
-        durationMinutes: 120,
-        type: 'focus',
-        categoryId: 'cat_1',
-        description: 'Planned: Auth Middleware Implementation'
-    },
-    {
-        id: 'p2',
-        title: 'Team Standup',
-        app: 'Zoom',
-        startTime: '11:00',
-        endTime: '11:30',
-        durationMinutes: 30,
-        type: 'meeting',
-        categoryId: 'cat_2',
-        description: 'Daily Sync'
-    },
-    {
-        id: 'p3',
-        title: 'Email & Comms',
-        app: 'Slack',
-        startTime: '11:30',
-        endTime: '12:00',
-        durationMinutes: 30,
-        type: 'other',
-        categoryId: 'cat_5'
-    },
-    {
-        id: 'p4',
-        title: 'Lunch',
-        app: 'Offline',
-        startTime: '12:00',
-        endTime: '13:00',
-        durationMinutes: 60,
-        type: 'break',
-        categoryId: 'cat_4'
-    },
-    {
-        id: 'p5',
-        title: 'Project Review',
-        app: 'GitHub',
-        startTime: '13:00',
-        endTime: '14:30',
-        durationMinutes: 90,
-        type: 'focus',
-        categoryId: 'cat_1'
-    },
-    {
-        id: 'p6',
-        title: 'Client Meeting',
-        app: 'Zoom',
-        startTime: '15:00',
-        endTime: '16:00',
-        durationMinutes: 60,
-        type: 'meeting',
-        categoryId: 'cat_2'
-    }
-];
+// 2. The Plan (Intent) - CLEARED
+export const MOCK_PLANNED_BLOCKS: TimeBlock[] = [];
 
-// 3. The Execution (Actual) - Overlaps and Gaps
-export const MOCK_ACTUAL_BLOCKS: TimeBlock[] = [
-  {
-    id: '1',
-    title: 'Deep Work: Backend API',
-    app: 'VS Code',
-    startTime: '09:15', // Started late
-    endTime: '11:00',
-    durationMinutes: 105,
-    type: 'focus',
-    categoryId: 'cat_1',
-    description: 'Implementing auth middleware.'
-  },
-  {
-    id: '2',
-    title: 'Daily Standup',
-    app: 'Zoom',
-    startTime: '11:00',
-    endTime: '11:35', // Overran
-    durationMinutes: 35,
-    type: 'meeting',
-    categoryId: 'cat_2',
-    description: 'Team sync.'
-  },
-  {
-    id: '3',
-    title: 'Urgent Bug Fix',
-    app: 'VS Code',
-    startTime: '11:40',
-    endTime: '12:10', // Ate into lunch
-    durationMinutes: 30,
-    type: 'focus', // Unplanned focus
-    categoryId: 'cat_1'
-  },
-  {
-    id: '4',
-    title: 'Lunch',
-    app: 'Offline',
-    startTime: '12:10',
-    endTime: '13:00',
-    durationMinutes: 50,
-    type: 'break',
-    categoryId: 'cat_4'
-  },
-  {
-    id: '5',
-    title: 'Code Review',
-    app: 'GitHub',
-    startTime: '13:00',
-    endTime: '14:00', // Stopped early
-    durationMinutes: 60,
-    type: 'focus',
-    categoryId: 'cat_1'
-  },
-  // Gap here: 14:00 - 15:00 (Planned focus/break missing)
-  {
-    id: '6',
-    title: 'Client Meeting',
-    app: 'Zoom',
-    startTime: '15:00',
-    endTime: '16:00',
-    durationMinutes: 60,
-    type: 'meeting',
-    categoryId: 'cat_2'
-  }
-];
+// 3. The Execution (Actual) - CLEARED
+export const MOCK_ACTUAL_BLOCKS: TimeBlock[] = [];
 
 // Alias for backward compatibility if needed, though we will update usages
 export const MOCK_TIME_BLOCKS = MOCK_ACTUAL_BLOCKS;

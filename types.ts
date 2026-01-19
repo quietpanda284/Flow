@@ -12,6 +12,7 @@ export interface TimeBlock {
   id: string;
   title: string;
   app: string;
+  date?: string; // Format: YYYY-MM-DD. Optional for backward compatibility, but required for DB.
   startTime: string; // HH:MM
   endTime: string; // HH:MM
   durationMinutes: number;

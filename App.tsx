@@ -8,8 +8,10 @@ import { VerticalTimeline } from './components/VerticalTimeline';
 import { Heatmap } from './components/Heatmap';
 import { BackendTest } from './components/BackendTest';
 import { SettingsPage } from './components/SettingsPage';
+import { ConnectionWarning } from './components/ConnectionWarning';
 import { TimeBlock, Category } from './types';
-import { getCategories, getActualBlocks, getPlannedBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock } from './services/api';
+import { getCategories, getActualBlocks, getPlannedBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock, getFocusHistory } from './services/api';
+import { getPeakFocusHour, getTotalFocusMinutes, formatDuration } from './utils/analytics';
 import { Loader2 } from 'lucide-react';
 
 export default function App() {
@@ -19,45 +21,82 @@ export default function App() {
   const [actualBlocks, setActualBlocks] = useState<TimeBlock[]>([]);
   const [plannedBlocks, setPlannedBlocks] = useState<TimeBlock[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [history, setHistory] = useState<{ date: string, totalMinutes: number }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Connection State
+  const [connectionError, setConnectionError] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
+
+  // Date Formatting
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+  const dayName = today.toLocaleDateString('en-US', { weekday: 'long' });
+  const fullDate = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   // Initial Fetch
   useEffect(() => {
     const fetchData = async () => {
         setIsLoading(true);
-        const [cats, actual, planned] = await Promise.all([
-            getCategories(),
-            getActualBlocks(),
-            getPlannedBlocks()
-        ]);
-        setCategories(cats);
-        setActualBlocks(actual);
-        setPlannedBlocks(planned);
-        setIsLoading(false);
+        setConnectionError(false);
+        try {
+            // Fetch blocks for TODAY
+            const [cats, actual, planned, hist] = await Promise.all([
+                getCategories(),
+                getActualBlocks(todayStr),
+                getPlannedBlocks(todayStr),
+                getFocusHistory()
+            ]);
+            setCategories(cats);
+            setActualBlocks(actual);
+            setPlannedBlocks(planned);
+            setHistory(hist);
+            setShowWarning(false);
+        } catch (error) {
+            console.error("Failed to fetch data:", error);
+            setConnectionError(true);
+            setShowWarning(true);
+            // Reset to empty states
+            setCategories([]);
+            setActualBlocks([]);
+            setPlannedBlocks([]);
+            setHistory([]);
+        } finally {
+            setIsLoading(false);
+        }
     };
     fetchData();
-  }, [currentPage]); // Reload data when navigating, useful after testing resets
+  }, [currentPage]); 
 
   // Simple stats calculation for the new metrics bar
   const totalPlannedMinutes = plannedBlocks.reduce((acc, curr) => acc + curr.durationMinutes, 0);
   const totalActualMinutes = actualBlocks.reduce((acc, curr) => acc + curr.durationMinutes, 0);
   
-  // Mock adherence rate for demo purposes
-  const adherenceRate = 82; 
+  // Dynamic Trends Data
+  const currentFocusMinutes = getTotalFocusMinutes(actualBlocks);
+  const peakFocusHour = getPeakFocusHour(actualBlocks);
+  
+  // Calculate Adherence
+  const adherenceRate = totalPlannedMinutes > 0 ? Math.min(100, Math.round((totalActualMinutes / totalPlannedMinutes) * 100)) : 0;
 
   const handleAddBlock = async (newBlock: TimeBlock) => {
+    // Add today's date to block
+    const blockWithDate = { ...newBlock, date: todayStr };
+
     // Optimistic Update
-    const tempBlock = { ...newBlock };
+    const tempBlock = { ...blockWithDate };
     setPlannedBlocks((prev) => [...prev, tempBlock]);
     
     try {
-        const savedBlock = await addTimeBlock(newBlock, true);
+        const savedBlock = await addTimeBlock(blockWithDate, true);
         // Replace temp ID with real ID
         setPlannedBlocks((prev) => prev.map(b => b.id === tempBlock.id ? savedBlock : b));
     } catch (e) {
         console.error("Failed to save block", e);
         // Revert
         setPlannedBlocks((prev) => prev.filter(b => b.id !== tempBlock.id));
+        setConnectionError(true);
+        setShowWarning(true);
     }
   };
 
@@ -65,9 +104,13 @@ export default function App() {
     const prevBlocks = [...plannedBlocks];
     setPlannedBlocks((prev) => prev.filter((b) => b.id !== blockId));
     
-    const success = await deleteTimeBlock(blockId);
-    if (!success) {
+    try {
+        const success = await deleteTimeBlock(blockId);
+        if (!success) throw new Error("Delete failed");
+    } catch (e) {
         setPlannedBlocks(prevBlocks);
+        setConnectionError(true);
+        setShowWarning(true);
     }
   };
 
@@ -75,9 +118,13 @@ export default function App() {
     const prevBlocks = [...plannedBlocks];
     setPlannedBlocks((prev) => prev.map((b) => (b.id === updatedBlock.id ? updatedBlock : b)));
     
-    const success = await updateTimeBlock(updatedBlock);
-    if (!success) {
+    try {
+        const success = await updateTimeBlock(updatedBlock);
+        if (!success) throw new Error("Update failed");
+    } catch (e) {
         setPlannedBlocks(prevBlocks);
+        setConnectionError(true);
+        setShowWarning(true);
     }
   };
 
@@ -86,7 +133,7 @@ export default function App() {
       <Sidebar activePage={currentPage} onNavigate={setCurrentPage} isDevMode={isDevMode} />
       
       {/* Main Content Area */}
-      <main className="pl-24 pr-8 py-8 min-h-screen max-w-[1600px] mx-auto">
+      <main className="pl-24 pr-8 py-8 min-h-screen max-w-[1600px] mx-auto relative">
         
         {/* Header */}
         <header className="flex justify-between items-center mb-8">
@@ -108,9 +155,16 @@ export default function App() {
                         <span className="text-xs text-gray-400">Syncing...</span>
                     </div>
                 )}
+                {/* Connection Status Indicator */}
+                {!isLoading && connectionError && (
+                    <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 rounded-full border border-red-500/20 animate-in fade-in">
+                        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        <span className="text-xs text-red-400">Offline</span>
+                    </div>
+                )}
                 <div className="text-right hidden sm:block">
-                    <div className="text-sm font-medium text-white">Tuesday</div>
-                    <div className="text-xs text-gray-500">October 24, 2023</div>
+                    <div className="text-sm font-medium text-white">{dayName}</div>
+                    <div className="text-xs text-gray-500">{fullDate}</div>
                 </div>
             </div>
         </header>
@@ -162,35 +216,35 @@ export default function App() {
         {/* Trends View */}
         {currentPage === 'Trends' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <Heatmap />
+                <Heatmap history={history} />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-card border border-border p-6 rounded-xl">
-                        <h3 className="text-gray-400 text-sm mb-2">Best Day</h3>
-                        <p className="text-2xl font-bold text-white">Wednesday</p>
-                        <p className="text-xs text-accent-focus mt-1">+12% vs avg</p>
+                        <h3 className="text-gray-400 text-sm mb-2">Today's Focus</h3>
+                        <p className="text-2xl font-bold text-white">{formatDuration(currentFocusMinutes)}</p>
+                        <p className="text-xs text-accent-focus mt-1">Deep Work Recorded</p>
                     </div>
                     <div className="bg-card border border-border p-6 rounded-xl">
                         <h3 className="text-gray-400 text-sm mb-2">Peak Focus Hour</h3>
-                        <p className="text-2xl font-bold text-white">10:00 AM</p>
-                        <p className="text-xs text-gray-500 mt-1">Consistent for 3 weeks</p>
+                        <p className="text-2xl font-bold text-white">{peakFocusHour}</p>
+                        <p className="text-xs text-gray-500 mt-1">Most productive time</p>
                     </div>
                     <div className="bg-card border border-border p-6 rounded-xl">
-                        <h3 className="text-gray-400 text-sm mb-2">Current Streak</h3>
-                        <p className="text-2xl font-bold text-white">8 Days</p>
-                        <p className="text-xs text-accent-focus mt-1">Keep it up!</p>
+                        <h3 className="text-gray-400 text-sm mb-2">Schedule Adherence</h3>
+                        <p className="text-2xl font-bold text-white">{adherenceRate}%</p>
+                        <p className="text-xs text-accent-focus mt-1">Plan Execution Score</p>
                     </div>
                 </div>
             </div>
         )}
 
-        {/* Focus Timer View */}
-        {currentPage === 'Focus' && (
-            <div className="flex items-center justify-center min-h-[600px] h-[calc(100vh-160px)]">
+        {/* Focus Timer View - PERSISTENT: Uses CSS visibility to maintain state */}
+        <div className={`transition-opacity duration-300 ${currentPage === 'Focus' ? 'block opacity-100' : 'hidden opacity-0 h-0 overflow-hidden'}`}>
+             <div className="flex items-center justify-center min-h-[600px] h-[calc(100vh-160px)]">
                 <div className="w-full max-w-3xl h-full">
                     <FocusTimer />
                 </div>
             </div>
-        )}
+        </div>
 
         {/* Test / Admin View - Only if enabled */}
         {currentPage === 'Test' && isDevMode && (
@@ -207,6 +261,9 @@ export default function App() {
         )}
 
       </main>
+
+      {/* Floating Warnings */}
+      {showWarning && <ConnectionWarning onClose={() => setShowWarning(false)} />}
     </div>
   );
 }

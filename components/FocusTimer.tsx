@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2 } from 'lucide-react';
 import { TimerState, CategoryType, Category } from '../types';
@@ -38,6 +39,15 @@ export const FocusTimer: React.FC = () => {
     };
     loadData();
   }, []);
+
+  // Update Document Title
+  useEffect(() => {
+    if (timerState === TimerState.RUNNING) {
+      document.title = `${formatTime(timeLeft)} - Focus`;
+    } else {
+      document.title = 'FlowState Dashboard';
+    }
+  }, [timeLeft, timerState]);
 
   useEffect(() => {
     if (timerState === TimerState.RUNNING) {

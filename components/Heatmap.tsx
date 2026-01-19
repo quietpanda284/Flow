@@ -1,31 +1,19 @@
-import React from 'react';
+
+import React, { useMemo } from 'react';
 
 const DAYS_IN_YEAR = 365;
-const WEEKS = 52;
-const DAYS_PER_WEEK = 7;
 
-// Generate deterministic random data for the demo
-const generateHeatmapData = () => {
-  const data = [];
-  const today = new Date();
-  for (let i = 0; i < DAYS_IN_YEAR; i++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - (DAYS_IN_YEAR - i));
-    
-    // Create some realistic patterns (weekends lighter, weekdays heavier)
-    const dayOfWeek = date.getDay();
-    let intensity = Math.floor(Math.random() * 5); // 0-4
-    
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-        intensity = Math.random() > 0.8 ? 1 : 0; // Mostly 0 on weekends
-    } else {
-        // Bias towards higher intensity on weekdays
-        intensity = Math.max(1, Math.floor(Math.random() * 5)); 
-    }
+interface HeatmapProps {
+  history: { date: string, totalMinutes: number }[];
+}
 
-    data.push({ date, intensity });
-  }
-  return data;
+// Map minutes to intensity level (0-4)
+const calculateIntensity = (minutes: number) => {
+    if (minutes === 0) return 0;
+    if (minutes < 60) return 1;   // < 1 hour
+    if (minutes < 180) return 2;  // < 3 hours
+    if (minutes < 300) return 3;  // < 5 hours
+    return 4;                     // 5+ hours
 };
 
 const getColor = (intensity: number) => {
@@ -39,14 +27,43 @@ const getColor = (intensity: number) => {
   }
 };
 
-export const Heatmap: React.FC = () => {
-  const data = generateHeatmapData();
+export const Heatmap: React.FC<HeatmapProps> = ({ history }) => {
   
-  // Group by weeks for the grid layout
-  const weeks = [];
-  for (let i = 0; i < data.length; i += 7) {
-    weeks.push(data.slice(i, i + 7));
-  }
+  const { weeks, totalMinutes } = useMemo(() => {
+    const today = new Date();
+    const data = [];
+    let grandTotal = 0;
+
+    // Create a Map for O(1) lookups: 'YYYY-MM-DD' -> minutes
+    const historyMap = new Map<string, number>();
+    history.forEach(item => {
+        historyMap.set(item.date, item.totalMinutes);
+        grandTotal += item.totalMinutes; // Note: this sums the provided history, which might be less than 365 days
+    });
+
+    // Generate last 365 days
+    for (let i = 0; i < DAYS_IN_YEAR; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - (DAYS_IN_YEAR - 1 - i));
+        
+        const dateStr = date.toISOString().split('T')[0];
+        const minutes = historyMap.get(dateStr) || 0;
+        const intensity = calculateIntensity(minutes);
+        
+        // Check if it matches today to highlight
+        const isToday = i === DAYS_IN_YEAR - 1;
+
+        data.push({ date, intensity, minutes, isToday });
+    }
+
+    // Group by weeks for the grid layout
+    const weeksArr = [];
+    for (let i = 0; i < data.length; i += 7) {
+        weeksArr.push(data.slice(i, i + 7));
+    }
+
+    return { weeks: weeksArr, totalMinutes: grandTotal };
+  }, [history]);
 
   return (
     <div className="bg-card border border-border rounded-xl p-8 flex flex-col items-center w-full overflow-x-auto custom-scrollbar">
@@ -54,7 +71,7 @@ export const Heatmap: React.FC = () => {
         <div className="flex justify-between items-end mb-6">
             <div>
                 <h2 className="text-xl font-bold text-white mb-1">Focus Consistency</h2>
-                <p className="text-sm text-gray-500">2,402 minutes of deep work in the last year</p>
+                <p className="text-sm text-gray-500">{totalMinutes.toLocaleString()} minutes of deep work recorded</p>
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500">
                 <span>Less</span>
@@ -73,11 +90,12 @@ export const Heatmap: React.FC = () => {
                 {week.map((day, dayIndex) => (
                 <div
                     key={dayIndex}
-                    className={`w-3 h-3 rounded-sm hover:ring-1 hover:ring-white transition-all cursor-pointer relative group ${getColor(day.intensity)}`}
+                    className={`w-3 h-3 rounded-sm hover:ring-1 hover:ring-white transition-all cursor-pointer relative group ${getColor(day.intensity)} ${day.isToday ? 'ring-1 ring-white ring-offset-1 ring-offset-[#0f1117]' : ''}`}
                 >
                     {/* Tooltip */}
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                        {day.date.toDateString()}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 border border-gray-700">
+                        <div className="font-bold">{day.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric'})}</div>
+                        <div className="text-gray-400">{day.minutes}m focus</div>
                     </div>
                 </div>
                 ))}
