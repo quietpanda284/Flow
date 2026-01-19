@@ -1,3 +1,5 @@
+
+import 'dotenv/config'; // Load environment variables first
 import express from 'express';
 import cors from 'cors';
 import { Sequelize, DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOptional, Op } from 'sequelize';
@@ -18,13 +20,17 @@ app.use(express.json() as any);
 // --- DATABASE CONNECTION ---
 let sequelize: Sequelize;
 
+console.log(`Initializing Database...`);
+console.log(`Dialect: ${DB_DIALECT}`);
 if (DB_DIALECT === 'mysql') {
+    console.log(`Connecting to MySQL at ${DB_HOST} as ${DB_USER}...`);
     sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
         host: DB_HOST,
         dialect: 'mysql',
         logging: false,
     });
 } else {
+    console.log(`Using SQLite storage: ${DB_STORAGE}`);
     sequelize = new Sequelize({
         dialect: 'sqlite',
         storage: DB_STORAGE,
