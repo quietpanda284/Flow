@@ -220,7 +220,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   };
 
   const handleStart = () => setTimerState(TimerState.RUNNING);
-  const handlePause = () => setTimerState(TimerState.PAUSED);
   
   const handleStop = () => {
     // Capture state at the moment of stopping
@@ -240,6 +239,25 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     } else {
         console.log(`[Timer] Session too short to save (<60s)`);
     }
+  };
+
+  // Logic for the single main button
+  const handleMainAction = () => {
+      if (timerState === TimerState.IDLE) {
+          handleStart();
+      } else {
+          // If running or paused, "Stop" finishes the session
+          handleStop();
+      }
+  };
+
+  // Logic for clicking the timer display
+  const toggleTimerPause = () => {
+      if (timerState === TimerState.RUNNING) {
+          setTimerState(TimerState.PAUSED);
+      } else if (timerState === TimerState.PAUSED) {
+          setTimerState(TimerState.RUNNING);
+      }
   };
 
   const handleAddCategory = async () => {
@@ -428,42 +446,46 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       </div>
 
       {/* Timer Display */}
-      <div className="flex-1 flex flex-col items-center justify-center mb-8 z-10 min-h-[120px] shrink-0">
-        <div className={`text-7xl sm:text-8xl font-mono font-bold tracking-wider mb-4 transition-colors duration-500 ${timerState === TimerState.RUNNING ? `${MODES[mode].color} drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]` : 'text-white'}`}>
+      <div 
+        onClick={toggleTimerPause}
+        className={`flex-1 flex flex-col items-center justify-center mb-8 z-10 min-h-[120px] shrink-0 relative group ${timerState !== TimerState.IDLE ? 'cursor-pointer' : ''}`}
+      >
+        <div className={`text-7xl sm:text-8xl font-mono font-bold tracking-wider mb-4 transition-all duration-500 select-none ${timerState === TimerState.RUNNING ? `${MODES[mode].color} drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]` : timerState === TimerState.PAUSED ? 'text-gray-500' : 'text-white'}`}>
           {formatTime(timeLeft)}
         </div>
+        
+        {/* Pause/Resume Overlay Hint */}
+        {timerState !== TimerState.IDLE && (
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                 {timerState === TimerState.RUNNING ? <Pause size={48} className="text-white/20" /> : <Play size={48} className="text-white/20" />}
+            </div>
+        )}
+
         <p className="text-gray-400 text-base font-medium text-center">
-            {timerState === TimerState.RUNNING 
-                ? (isFocus ? 'Stay focused, keep flowing.' : 'Take a breath, relax.') 
-                : 'Ready to start?'}
+            {timerState === TimerState.PAUSED 
+                ? 'Timer Paused' 
+                : timerState === TimerState.RUNNING 
+                    ? (isFocus ? 'Stay focused, keep flowing.' : 'Take a breath, relax.') 
+                    : 'Ready to start?'}
         </p>
       </div>
 
       {/* Controls */}
-      <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto w-full z-40 mt-auto relative">
-        {timerState === TimerState.RUNNING ? (
-             <button 
-                onClick={handlePause}
-                className="flex items-center justify-center gap-2 bg-[#2a2d36] hover:bg-[#323640] text-white py-4 rounded-xl font-semibold transition-all border border-[#3f434e] active:scale-95"
-             >
-                <Pause size={22} /> Pause
-             </button>
-        ) : (
-            <button 
-                onClick={handleStart}
-                className={`flex items-center justify-center gap-2 text-black py-4 rounded-xl font-bold transition-all shadow-lg hover:brightness-110 active:scale-95 ${MODES[mode].bg}`}
-             >
-                <Play size={22} fill="currentColor" /> {timerState === TimerState.PAUSED ? 'Resume' : 'Start'}
-             </button>
-        )}
-        
-        <button 
-            onClick={handleStop}
-            className={`flex items-center justify-center gap-2 border border-[#2a2d36] text-gray-400 hover:text-white hover:border-gray-500 py-4 rounded-xl font-medium transition-all active:scale-95 ${timerState === TimerState.IDLE ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#2a2d36]'}`}
-            disabled={timerState === TimerState.IDLE}
-        >
-            <Square size={22} fill={timerState !== TimerState.IDLE ? "currentColor" : "none"} /> Stop
-        </button>
+      <div className="max-w-sm mx-auto w-full z-40 mt-auto relative">
+         <button 
+            onClick={handleMainAction}
+            className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold transition-all shadow-lg hover:brightness-110 active:scale-95 ${timerState === TimerState.IDLE ? MODES[mode].bg + ' text-black' : 'bg-[#2a2d36] text-white border border-[#3f434e] hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'}`}
+         >
+            {timerState === TimerState.IDLE ? (
+                <>
+                    <Play size={22} fill="currentColor" /> Start {isFocus ? 'Focus' : 'Break'}
+                </>
+            ) : (
+                <>
+                    <Square size={22} fill="currentColor" /> Complete Session
+                </>
+            )}
+         </button>
       </div>
 
       {/* Dev Mode Simulation Button */}
