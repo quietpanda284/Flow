@@ -454,13 +454,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
           {formatTime(timeLeft)}
         </div>
         
-        {/* Pause/Resume Overlay Hint */}
-        {timerState !== TimerState.IDLE && (
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                 {timerState === TimerState.RUNNING ? <Pause size={48} className="text-white/20" /> : <Play size={48} className="text-white/20" />}
-            </div>
-        )}
-
         <p className="text-gray-400 text-base font-medium text-center">
             {timerState === TimerState.PAUSED 
                 ? 'Timer Paused' 
@@ -471,18 +464,18 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       </div>
 
       {/* Controls */}
-      <div className="max-w-sm mx-auto w-full z-40 mt-auto relative">
+      <div className="flex justify-center w-full z-40 mt-auto relative">
          <button 
             onClick={handleMainAction}
-            className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold transition-all shadow-lg hover:brightness-110 active:scale-95 ${timerState === TimerState.IDLE ? MODES[mode].bg + ' text-black' : 'bg-[#2a2d36] text-white border border-[#3f434e] hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'}`}
+            className={`px-10 py-3 rounded-xl font-bold transition-all shadow-lg hover:brightness-110 active:scale-95 flex items-center gap-2 ${timerState === TimerState.IDLE ? MODES[mode].bg + ' text-black' : 'bg-[#2a2d36] text-white border border-[#3f434e] hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'}`}
          >
             {timerState === TimerState.IDLE ? (
                 <>
-                    <Play size={22} fill="currentColor" /> Start {isFocus ? 'Focus' : 'Break'}
+                    <Play size={18} fill="currentColor" /> Start
                 </>
             ) : (
                 <>
-                    <Square size={22} fill="currentColor" /> Complete Session
+                    <Square size={18} fill="currentColor" /> Stop
                 </>
             )}
          </button>
