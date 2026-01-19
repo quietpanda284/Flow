@@ -38,6 +38,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   const timerRef = useRef<number | null>(null);
 
   const isFocus = mode.startsWith('FOCUS');
+  const isTimerActive = timerState !== TimerState.IDLE;
 
   // Initial Data Fetch
   useEffect(() => {
@@ -190,6 +191,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
 
   // Switch between Tab Groups (Focus vs Break)
   const switchTab = (tab: 'FOCUS' | 'BREAK') => {
+    if (isTimerActive) return;
     // Default behaviors when switching tabs
     const newMode: TimerVariant = tab === 'FOCUS' ? 'FOCUS_25' : 'BREAK_5';
     setMode(newMode);
@@ -199,6 +201,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
 
   // Toggle Duration within the current tab
   const toggleDuration = () => {
+      if (isTimerActive) return;
       let newMode: TimerVariant = mode;
       
       switch (mode) {
@@ -311,21 +314,23 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         <div className="flex p-1 bg-[#0f1117] rounded-lg border border-[#2a2d36] mb-6">
             <button
                 onClick={() => switchTab('FOCUS')}
+                disabled={isTimerActive}
                 className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
                     isFocus
                     ? 'bg-[#2a2d36] text-white shadow-sm' 
                     : 'text-gray-500 hover:text-gray-300'
-                }`}
+                } ${isTimerActive ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
                 Focus
             </button>
             <button
                 onClick={() => switchTab('BREAK')}
+                disabled={isTimerActive}
                 className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
                     !isFocus
                     ? 'bg-[#2a2d36] text-white shadow-sm' 
                     : 'text-gray-500 hover:text-gray-300'
-                }`}
+                } ${isTimerActive ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
                 Break
             </button>
@@ -334,20 +339,21 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         {/* Toggleable Pill */}
         <button 
             onClick={toggleDuration}
-            title="Click to switch duration"
-            className={`group flex items-center gap-2 px-4 py-1.5 rounded-full border bg-opacity-10 transition-all active:scale-95 ${isFocus ? 'bg-green-500/10 border-green-500/20 text-accent-focus hover:bg-green-500/20' : 'bg-orange-500/10 border-orange-500/20 text-accent-break hover:bg-orange-500/20'}`}
+            disabled={isTimerActive}
+            title={isTimerActive ? "Stop timer to change duration" : "Click to switch duration"}
+            className={`group flex items-center gap-2 px-4 py-1.5 rounded-full border bg-opacity-10 transition-all active:scale-95 ${isFocus ? 'bg-green-500/10 border-green-500/20 text-accent-focus hover:bg-green-500/20' : 'bg-orange-500/10 border-orange-500/20 text-accent-break hover:bg-orange-500/20'} ${isTimerActive ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
         >
             <CurrentIcon size={14} />
             <span className="text-xs font-semibold tracking-wide uppercase">
                 {isFocus ? 'Focus' : 'Break'} ({MODES[mode].minutes}m)
             </span>
-            <RefreshCw size={10} className="opacity-50 group-hover:rotate-180 transition-transform duration-500" />
+            {!isTimerActive && <RefreshCw size={10} className="opacity-50 group-hover:rotate-180 transition-transform duration-500" />}
         </button>
       </div>
 
       {/* Category Selector - Only visible in Focus Mode */}
       <div className={`relative mb-8 z-30 transition-all duration-300 ${isFocus ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none h-0 mb-0'}`}>
-        <label className="text-xs text-gray-500 mb-1 block uppercase tracking-wider text-center">Current Category</label>
+        <label className={`text-xs text-gray-500 mb-1 block uppercase tracking-wider text-center ${isTimerActive ? 'opacity-50' : ''}`}>Current Category</label>
         
         {isAddingCategory ? (
              <div className="flex flex-col gap-3 max-w-sm mx-auto w-full animate-in fade-in slide-in-from-top-2">
@@ -389,8 +395,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
                 <div className="relative flex-1">
                     <button 
                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        disabled={isLoading}
-                        className="w-full bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg p-3 flex justify-between items-center text-white transition-colors group disabled:opacity-70"
+                        disabled={isLoading || isTimerActive}
+                        className={`w-full bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg p-3 flex justify-between items-center text-white transition-colors group disabled:opacity-70 ${isTimerActive ? 'cursor-not-allowed opacity-50' : ''}`}
                     >
                          {isLoading ? (
                              <div className="flex items-center gap-2">
@@ -406,7 +412,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
                     </button>
                     
                     {/* Dropdown Menu */}
-                    {isDropdownOpen && !isLoading && (
+                    {isDropdownOpen && !isLoading && !isTimerActive && (
                         <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
                             <div className="max-h-48 overflow-y-auto custom-scrollbar">
                                 {categories.map(cat => (
@@ -436,7 +442,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
                 
                 <button 
                     onClick={() => { setIsAddingCategory(true); setIsDropdownOpen(false); setNewCategoryTitle(''); setNewCategoryType('focus'); }}
-                    className="bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg px-3 flex items-center justify-center text-gray-400 hover:text-accent-focus transition-colors"
+                    disabled={isTimerActive}
+                    className={`bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg px-3 flex items-center justify-center text-gray-400 hover:text-accent-focus transition-colors ${isTimerActive ? 'cursor-not-allowed opacity-50' : ''}`}
                     title="Add new category"
                 >
                     <Plus size={20} />
