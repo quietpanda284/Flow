@@ -92,11 +92,11 @@ const LoginContainer = ({
             </div>
 
             <div className="w-full max-w-sm bg-card border border-border rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-500 transition-all">
-                <div className="flex items-center gap-3 mb-6 justify-center">
-                    <div className="p-2 bg-[#0f1117] rounded-lg border border-border">
-                        {isRegistering ? <UserPlus className="text-accent-focus" size={20} /> : <Lock className="text-accent-focus" size={20} />}
+                <div className="flex flex-col items-center gap-4 mb-6">
+                    <div className="p-3 bg-[#0f1117] rounded-xl border border-border">
+                        {isRegistering ? <UserPlus className="text-accent-focus" size={24} /> : <Lock className="text-accent-focus" size={24} />}
                     </div>
-                    <h1 className="text-2xl text-white tracking-wide font-display mt-1">
+                    <h1 className="text-2xl text-white tracking-wide font-display text-center">
                         {isRegistering ? 'Create Account' : 'Welcome Back'}
                     </h1>
                 </div>
