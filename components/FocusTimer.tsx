@@ -59,10 +59,13 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   };
 
-  const saveSession = async () => {
+  const saveSession = async (actualMinutes?: number) => {
     const now = new Date();
-    const durationMinutes = MODES[mode].minutes;
+    // Default to full duration if no actual minutes provided (timer complete)
+    const durationMinutes = Math.round(actualMinutes ?? MODES[mode].minutes);
     
+    if (durationMinutes < 1) return; // Skip if less than 1 minute
+
     // Calculate start time based on duration
     const startDate = new Date(now.getTime() - durationMinutes * 60000);
     
@@ -98,7 +101,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     try {
         await addTimeBlock(newBlock, false);
         if (onTimerComplete) onTimerComplete();
-        console.log("Timer session saved successfully");
+        console.log(`Timer session saved: ${durationMinutes}m`);
     } catch (error) {
         console.error("Failed to save timer session", error);
     }
@@ -184,6 +187,15 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   const handleStart = () => setTimerState(TimerState.RUNNING);
   const handlePause = () => setTimerState(TimerState.PAUSED);
   const handleStop = () => {
+    // Check if we should save partial progress
+    const totalSeconds = MODES[mode].minutes * 60;
+    const elapsedSeconds = totalSeconds - timeLeft;
+    
+    // If user manually stops and meaningful time (>60s) has passed, save it
+    if (elapsedSeconds >= 60 && timerState !== TimerState.IDLE) {
+        saveSession(elapsedSeconds / 60);
+    }
+
     setTimerState(TimerState.IDLE);
     setTimeLeft(MODES[mode].minutes * 60);
   };
