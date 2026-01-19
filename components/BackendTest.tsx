@@ -1,23 +1,31 @@
-
 import React, { useState } from 'react';
 import { resetDatabase, seedDatabase } from '../services/api';
 import { Database, RefreshCw, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
 
-export const BackendTest: React.FC = () => {
+interface BackendTestProps {
+    onDataChanged?: () => void;
+}
+
+export const BackendTest: React.FC<BackendTestProps> = ({ onDataChanged }) => {
     const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
     const handleReset = async () => {
-        if (!window.confirm('Are you sure? This will delete all categories and time blocks.')) return;
+        if (!window.confirm('Are you sure? This will delete all your categories and time blocks.')) return;
         
         setIsLoading(true);
         setStatus(null);
         
-        const success = await resetDatabase();
-        if (success) {
-            setStatus({ type: 'success', message: 'Database reset successfully. Content cleared.' });
-        } else {
-            setStatus({ type: 'error', message: 'Failed to reset database.' });
+        try {
+            const success = await resetDatabase();
+            if (success) {
+                setStatus({ type: 'success', message: 'Database reset successfully. Content cleared.' });
+                if (onDataChanged) onDataChanged();
+            } else {
+                setStatus({ type: 'error', message: 'Failed to reset database.' });
+            }
+        } catch (e) {
+            setStatus({ type: 'error', message: 'An error occurred during reset.' });
         }
         setIsLoading(false);
     };
@@ -26,11 +34,16 @@ export const BackendTest: React.FC = () => {
         setIsLoading(true);
         setStatus(null);
         
-        const success = await seedDatabase();
-        if (success) {
-            setStatus({ type: 'success', message: 'Seed data generation request sent.' });
-        } else {
-            setStatus({ type: 'error', message: 'Failed to seed database.' });
+        try {
+            const success = await seedDatabase();
+            if (success) {
+                setStatus({ type: 'success', message: 'Seed data generated successfully.' });
+                if (onDataChanged) onDataChanged();
+            } else {
+                setStatus({ type: 'error', message: 'Failed to seed database.' });
+            }
+        } catch (e) {
+             setStatus({ type: 'error', message: 'An error occurred during seeding.' });
         }
         setIsLoading(false);
     };
@@ -76,7 +89,7 @@ export const BackendTest: React.FC = () => {
                         </div>
                         <span className="text-lg font-bold text-white mb-2">Reset Database</span>
                         <span className="text-sm text-gray-500 text-center leading-relaxed">
-                            Permanently deletes all categories and time blocks (Truncate).
+                            Permanently deletes all your categories and time blocks.
                         </span>
                     </button>
                 </div>

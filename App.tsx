@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { MetricsBar } from './components/MetricsBar';
@@ -298,7 +297,7 @@ export default function App() {
 
         {currentPage === 'Test' && isDevMode && (
             <div className="flex items-center justify-center min-h-[600px] h-[calc(100vh-160px)]">
-                <BackendTest />
+                <BackendTest onDataChanged={() => fetchData()} />
             </div>
         )}
         
