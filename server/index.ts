@@ -282,6 +282,34 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        if (!username || !password) return res.status(400).json({ error: 'Missing fields' });
+        
+        const existing = await (User as any).findOne({ where: { username } });
+        if (existing) return res.status(400).json({ error: 'Username taken' });
+
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
+        
+        const user = await (User as any).create({ username, passwordHash });
+        
+        const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
+        res.cookie('token', token, { 
+            httpOnly: true, 
+            secure: false, 
+            sameSite: 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000 
+        } as any);
+
+        res.json({ success: true, user: { id: user.id, username: user.username } });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Registration failed' });
+    }
+});
+
 app.post('/api/auth/logout', (req, res) => {
     res.clearCookie('token');
     res.json({ success: true });

@@ -46,6 +46,14 @@ export const loginUser = async (username: string, password: string): Promise<any
     });
 };
 
+export const registerUser = async (username: string, password: string): Promise<any> => {
+    return await fetchWithTimeout('/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+};
+
 export const logoutUser = async (): Promise<boolean> => {
     await fetchWithTimeout('/auth/logout', { method: 'POST' });
     return true;
