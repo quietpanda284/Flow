@@ -104,6 +104,9 @@ const timeToMinutes = (time: string): number => {
  */
 export const calculateScheduleMetrics = (planned: TimeBlock[], actual: TimeBlock[]) => {
     const MINUTES_IN_DAY = 24 * 60;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
     const planMap = new Uint8Array(MINUTES_IN_DAY); // 0 or 1
     const actMap = new Uint8Array(MINUTES_IN_DAY);  // 0 or 1
     
@@ -121,30 +124,45 @@ export const calculateScheduleMetrics = (planned: TimeBlock[], actual: TimeBlock
     fill(planned, planMap);
     fill(actual, actMap);
 
-    let overlapCount = 0;
-    let planCount = 0;
-    let actCount = 0;
+    let totalOverlapCount = 0;
+    let totalPlanCount = 0;
+    let totalActCount = 0;
+
+    let pastPlanCount = 0;
+    let pastOverlapCount = 0;
 
     for(let i=0; i<MINUTES_IN_DAY; i++) {
-        if (planMap[i]) planCount++;
-        if (actMap[i]) actCount++;
-        if (planMap[i] && actMap[i]) overlapCount++;
+        const isPlanned = planMap[i] === 1;
+        const isActual = actMap[i] === 1;
+        const isPast = i <= currentMinutes;
+
+        if (isPlanned) totalPlanCount++;
+        if (isActual) totalActCount++;
+        if (isPlanned && isActual) totalOverlapCount++;
+
+        if (isPast) {
+            if (isPlanned) pastPlanCount++;
+            if (isPlanned && isActual) pastOverlapCount++;
+        }
     }
 
-    // Missed = Planned minutes that were NOT covered by actual
-    const missedMinutes = planCount - overlapCount;
+    // Missed = Planned minutes in the PAST that were NOT covered by actual
+    const missedMinutes = pastPlanCount - pastOverlapCount;
     
-    // Unplanned = Actual minutes that were NOT in the plan
-    const unplannedMinutes = actCount - overlapCount;
+    // Unplanned = Total Actual - Total Overlap (Work done that wasn't in plan)
+    // We use total here because "unplanned" usually refers to any deviation added, 
+    // and actuals are typically in the past anyway.
+    const unplannedMinutes = totalActCount - totalOverlapCount;
     
-    // Strict Adherence = % of Plan that was actually executed
-    const adherenceRate = planCount > 0 ? Math.round((overlapCount / planCount) * 100) : 0;
+    // Strict Adherence = % of Past Plan that was actually executed
+    // If no plan in the past, default to 100% (perfect adherence to nothing)
+    const adherenceRate = pastPlanCount > 0 ? Math.round((pastOverlapCount / pastPlanCount) * 100) : 100;
     
     return {
         missedMinutes,
         unplannedMinutes,
         adherenceRate,
-        totalPlannedMinutes: planCount,
-        totalActualMinutes: actCount
+        totalPlannedMinutes: totalPlanCount,
+        totalActualMinutes: totalActCount
     };
 };
