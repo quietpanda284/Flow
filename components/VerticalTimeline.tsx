@@ -13,6 +13,8 @@ interface VerticalTimelineProps {
   onUpdateBlock?: (block: TimeBlock) => void;
   isInteractive?: boolean;
   viewMode?: 'plan' | 'review'; // 'plan' shows planned as solid, 'review' shows planned as ghost vs actual
+  initialScrollTop?: number | null;
+  onScroll?: (scrollTop: number) => void;
 }
 
 // Config
@@ -58,7 +60,9 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
   onDeleteBlock,
   onUpdateBlock,
   isInteractive = false,
-  viewMode = 'review'
+  viewMode = 'review',
+  initialScrollTop,
+  onScroll
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -107,11 +111,15 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Scroll to current time on mount
+  // Scroll to current time on mount OR restore previous position
   useEffect(() => {
     if (containerRef.current) {
-        // Scroll to around 8:00 or 9:00 initially (adjusting for offset)
-        containerRef.current.scrollTop = hourHeight * 1.5; 
+        if (initialScrollTop !== undefined && initialScrollTop !== null) {
+            containerRef.current.scrollTop = initialScrollTop;
+        } else {
+            // Scroll to around 8:30 initially (adjusting for offset)
+            containerRef.current.scrollTop = hourHeight * 1.5; 
+        }
     }
   }, []);
 
@@ -523,6 +531,9 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
                 setDragEndY(null);
                 setActiveBlockId(null);
             }
+        }}
+        onScroll={(e) => {
+            if (onScroll) onScroll(e.currentTarget.scrollTop);
         }}
       >
         <div className="relative w-full" style={{ height: `${totalHeight}px` }}>

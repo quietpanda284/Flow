@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { MetricsBar } from './components/MetricsBar';
 import { CategoryBreakdown } from './components/CategoryBreakdown';
@@ -27,6 +27,9 @@ export default function App() {
   // Connection State
   const [connectionError, setConnectionError] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
+
+  // Store Scroll Position for the Planning Page
+  const planScrollRef = useRef<number | null>(null);
 
   // Date Formatting (LOCAL TIME to match Timer)
   const today = new Date();
@@ -231,6 +234,8 @@ export default function App() {
                     onUpdateBlock={handleUpdateBlock}
                     isInteractive={true}
                     viewMode="plan"
+                    initialScrollTop={planScrollRef.current}
+                    onScroll={(scrollTop) => { planScrollRef.current = scrollTop; }}
                  />
              </div>
         )}
