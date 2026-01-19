@@ -9,12 +9,15 @@ import { Heatmap } from './components/Heatmap';
 import { BackendTest } from './components/BackendTest';
 import { SettingsPage } from './components/SettingsPage';
 import { ConnectionWarning } from './components/ConnectionWarning';
+import { LoginPage } from './components/LoginPage';
 import { TimeBlock, Category } from './types';
 import { getCategories, getActualBlocks, getPlannedBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock, getFocusHistory } from './services/api';
 import { getPeakFocusHour, getTotalFocusMinutes, formatDuration, calculateScheduleMetrics } from './utils/analytics';
-import { Loader2 } from 'lucide-react';
+import { Loader2, LogOut } from 'lucide-react';
+import { useAuth } from './context/AuthContext';
 
 export default function App() {
+  const { user, isLoading: isAuthLoading, logout } = useAuth();
   const [currentPage, setCurrentPage] = useState('Home');
   
   // Developer Mode State - Persisted in LocalStorage
@@ -35,7 +38,7 @@ export default function App() {
   const [plannedBlocks, setPlannedBlocks] = useState<TimeBlock[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [history, setHistory] = useState<{ date: string, totalMinutes: number }[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isDataLoading, setIsDataLoading] = useState(true);
   
   // Connection State
   const [connectionError, setConnectionError] = useState(false);
@@ -46,7 +49,6 @@ export default function App() {
 
   // Date Formatting (LOCAL TIME to match Timer)
   const today = new Date();
-  // Get YYYY-MM-DD in local time
   const offset = today.getTimezoneOffset();
   const localDate = new Date(today.getTime() - (offset*60*1000));
   const todayStr = localDate.toISOString().split('T')[0];
@@ -56,7 +58,9 @@ export default function App() {
 
   // Fetch logic extracted to function for reuse
   const fetchData = async (background = false) => {
-    if (!background) setIsLoading(true);
+    if (!user) return; // Don't fetch if not logged in
+    
+    if (!background) setIsDataLoading(true);
     setConnectionError(false);
     try {
         const [cats, actual, planned, hist] = await Promise.all([
@@ -74,26 +78,21 @@ export default function App() {
         console.error("Failed to fetch data:", error);
         setConnectionError(true);
         if (!background) setShowWarning(true);
-        // We do NOT clear data on error to prevent flickering if just a transient failure
     } finally {
-        setIsLoading(false);
+        setIsDataLoading(false);
     }
   };
 
-  // Initial Fetch & Auto-Refresh (Keep-Alive)
+  // Initial Fetch & Auto-Refresh
   useEffect(() => {
-    fetchData(); // Initial load
-
-    // Poll every 30 seconds to keep the ngrok tunnel and DB connection active.
-    // This prevents the "idle disconnect" issue common with tunneling services.
-    const intervalId = setInterval(() => {
-        // Only poll if not currently editing (handled loosely by checking page, 
-        // but strictly speaking safe because we only overwrite lists)
-        fetchData(true);
-    }, 30000); 
-
-    return () => clearInterval(intervalId);
-  }, [currentPage]); 
+    if (user) {
+        fetchData(); 
+        const intervalId = setInterval(() => {
+            fetchData(true);
+        }, 30000); 
+        return () => clearInterval(intervalId);
+    }
+  }, [currentPage, user]); 
 
   // Calculate advanced schedule metrics
   const { 
@@ -109,20 +108,15 @@ export default function App() {
   const peakFocusHour = getPeakFocusHour(actualBlocks);
 
   const handleAddBlock = async (newBlock: TimeBlock) => {
-    // Add today's date to block
     const blockWithDate = { ...newBlock, date: todayStr };
-
-    // Optimistic Update
     const tempBlock = { ...blockWithDate };
     setPlannedBlocks((prev) => [...prev, tempBlock]);
     
     try {
         const savedBlock = await addTimeBlock(blockWithDate, true);
-        // Replace temp ID with real ID
         setPlannedBlocks((prev) => prev.map(b => b.id === tempBlock.id ? savedBlock : b));
     } catch (e) {
         console.error("Failed to save block", e);
-        // Revert
         setPlannedBlocks((prev) => prev.filter(b => b.id !== tempBlock.id));
         setConnectionError(true);
         setShowWarning(true);
@@ -157,10 +151,23 @@ export default function App() {
     }
   };
 
-  // Callback for when timer completes
   const handleTimerComplete = () => {
-      fetchData(); // Refresh data to show new block in timeline/trends
+      fetchData(); 
   };
+
+  // --- AUTH GUARD RENDER ---
+  
+  if (isAuthLoading) {
+      return (
+          <div className="min-h-screen bg-[#0f1117] flex items-center justify-center">
+              <Loader2 className="animate-spin text-accent-focus" size={32} />
+          </div>
+      );
+  }
+
+  if (!user) {
+      return <LoginPage />;
+  }
 
   return (
     <div className="min-h-screen bg-background text-gray-200 font-sans selection:bg-accent-focus selection:text-black">
@@ -182,21 +189,28 @@ export default function App() {
                 {currentPage === 'Home' && <p className="text-gray-500 text-sm mt-1">Comparing intent vs reality.</p>}
             </div>
             <div className="flex items-center gap-4">
-                {/* Non-intrusive loading indicator */}
-                {isLoading && (
+                {/* Logout Button (Top Right) */}
+                <button 
+                    onClick={logout}
+                    className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                    title="Sign Out"
+                >
+                    <LogOut size={20} />
+                </button>
+
+                {isDataLoading && (
                     <div className="flex items-center gap-2 px-3 py-1 bg-card rounded-full border border-border animate-in fade-in">
                         <Loader2 className="animate-spin text-accent-focus" size={14} />
                         <span className="text-xs text-gray-400">Syncing...</span>
                     </div>
                 )}
-                {/* Connection Status Indicator */}
-                {!isLoading && connectionError && (
+                {!isDataLoading && connectionError && (
                     <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 rounded-full border border-red-500/20 animate-in fade-in">
                         <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                         <span className="text-xs text-red-400">Offline</span>
                     </div>
                 )}
-                <div className="text-right hidden sm:block">
+                <div className="text-right hidden sm:block border-l border-border pl-4">
                     <div className="text-sm font-medium text-white">{dayName}</div>
                     <div className="text-xs text-gray-500">{fullDate}</div>
                 </div>
@@ -215,19 +229,17 @@ export default function App() {
                 />
                 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Main Feed - Timeline with Ghost Overlay */}
                     <div className="lg:col-span-2 h-[600px]">
                         <VerticalTimeline 
                             plannedBlocks={plannedBlocks} 
                             actualBlocks={actualBlocks}
                             categories={categories}
-                            onAddBlock={() => {}} // No-op for read-only
+                            onAddBlock={() => {}}
                             isInteractive={false}
                             viewMode="review"
                         />
                     </div>
                     
-                    {/* Sidebar Stats */}
                     <div className="lg:col-span-1 h-[600px] flex flex-col">
                         <CategoryBreakdown timeBlocks={actualBlocks} categories={categories} />
                     </div>
@@ -235,7 +247,6 @@ export default function App() {
             </>
         )}
 
-        {/* Plan View (Interactive - Solid Blocks) */}
         {currentPage === 'Plan' && (
              <div className="grid grid-cols-1 gap-6 h-[700px]">
                  <VerticalTimeline 
@@ -253,7 +264,6 @@ export default function App() {
              </div>
         )}
 
-        {/* Trends View */}
         {currentPage === 'Trends' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <Heatmap history={history} />
@@ -277,7 +287,6 @@ export default function App() {
             </div>
         )}
 
-        {/* Focus Timer View - PERSISTENT: Uses CSS visibility to maintain state */}
         <div className={`transition-opacity duration-300 ${currentPage === 'Focus' ? 'block opacity-100' : 'hidden opacity-0 h-0 overflow-hidden'}`}>
              <div className="flex items-center justify-center min-h-[600px] h-[calc(100vh-160px)]">
                 <div className="w-full max-w-3xl h-full">
@@ -286,14 +295,12 @@ export default function App() {
             </div>
         </div>
 
-        {/* Test / Admin View - Only if enabled */}
         {currentPage === 'Test' && isDevMode && (
             <div className="flex items-center justify-center min-h-[600px] h-[calc(100vh-160px)]">
                 <BackendTest />
             </div>
         )}
         
-        {/* Settings View */}
         {currentPage === 'Settings' && (
             <div className="flex items-center justify-center min-h-[600px] h-[calc(100vh-160px)]">
                 <SettingsPage isDevMode={isDevMode} onToggleDevMode={setIsDevMode} />
@@ -302,7 +309,6 @@ export default function App() {
 
       </main>
 
-      {/* Floating Warnings */}
       {showWarning && <ConnectionWarning onClose={() => setShowWarning(false)} />}
     </div>
   );

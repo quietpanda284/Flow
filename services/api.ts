@@ -1,18 +1,12 @@
 
 import { CategoryStat, TimeBlock, CategoryType, Category } from '../types';
 
-// Use relative path '/api'. 
-// This forces the browser to send requests to the same server serving the page (Vite on port 5174).
-// Vite will then proxy these requests to the backend (port 3006) locally.
-// This solves CORS issues and Firewall blocks on port 3006.
 const API_URL = '/api';
 
 /**
  * Helper to handle fetch with timeout and JSON parsing.
  */
 async function fetchWithTimeout(resource: string, options: RequestInit = {}) {
-  // Increased default timeout to 15000ms (15s) to handle network latency 
-  // and database connection wake-up times over tunneled connections (ngrok).
   const { timeout = 15000 } = options as any;
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
@@ -20,29 +14,50 @@ async function fetchWithTimeout(resource: string, options: RequestInit = {}) {
   try {
     const response = await fetch(`${API_URL}${resource}`, {
       ...options,
+      credentials: 'include', // IMPORTANT: Send/Receive Cookies
       headers: {
         ...options.headers,
-        // Critical for ngrok: tells the tunnel to skip the "Visit Site" html warning page
-        // which causes JSON parsing errors and makes the app look offline.
         'ngrok-skip-browser-warning': 'true', 
       },
       signal: controller.signal
     });
     clearTimeout(id);
+    
+    // Handle Auth failure globally if needed, though often better handled in context
+    if (response.status === 401) {
+        throw new Error('UNAUTHORIZED');
+    }
+
     if (!response.ok) throw new Error('API Error');
     return await response.json();
   } catch (error) {
     clearTimeout(id);
-    // console.error(`API Call Failed: ${resource}`, error); 
-    // Rethrow so App.tsx handles the error state
     throw error;
   }
 }
 
+// --- Auth Service ---
+
+export const loginUser = async (username: string, password: string): Promise<any> => {
+    return await fetchWithTimeout('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+};
+
+export const logoutUser = async (): Promise<boolean> => {
+    await fetchWithTimeout('/auth/logout', { method: 'POST' });
+    return true;
+};
+
+export const checkAuthStatus = async (): Promise<any> => {
+    return await fetchWithTimeout('/auth/me');
+};
+
 // --- Categories Service ---
 
 export const getCategories = async (): Promise<Category[]> => {
-  // No fallback: let App handle the error
   return await fetchWithTimeout('/categories');
 };
 
@@ -78,7 +93,6 @@ export const getFocusHistory = async (): Promise<{ date: string, totalMinutes: n
 };
 
 export const addTimeBlock = async (block: TimeBlock, isPlanned: boolean): Promise<TimeBlock> => {
-    // Ensure backend knows it's planned
     const payload = { ...block, isPlanned, id: undefined }; 
     return await fetchWithTimeout('/blocks', {
         method: 'POST',

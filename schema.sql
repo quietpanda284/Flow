@@ -1,6 +1,18 @@
+
 -- Create the database
 CREATE DATABASE IF NOT EXISTS flowstate;
 USE flowstate;
+
+-- Create Users table
+CREATE TABLE IF NOT EXISTS Users (
+    id VARCHAR(36) NOT NULL,
+    username VARCHAR(255) NOT NULL,
+    passwordHash VARCHAR(255) NOT NULL,
+    createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY username (username)
+);
 
 -- Create Categories table
 CREATE TABLE IF NOT EXISTS Categories (

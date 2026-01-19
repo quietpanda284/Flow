@@ -1,7 +1,9 @@
-
 import 'dotenv/config'; // Load environment variables first
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { Sequelize, DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOptional, Op } from 'sequelize';
 
 // --- CONFIGURATION ---
@@ -13,55 +15,37 @@ const DB_USER = process.env.DB_USER || 'root';
 const DB_PASS = process.env.DB_PASS || '12345678';
 const DB_HOST = process.env.DB_HOST || '127.0.0.1';
 const DB_PORT = parseInt(process.env.DB_PORT || '3306', 10);
+const JWT_SECRET = process.env.JWT_SECRET || 'flowstate_secret_key_change_me';
 
 const app = express();
 
-// Log every incoming request to help debug phone connections
+// Log every incoming request
 app.use((req, res, next) => {
     console.log(`[INCOMING] ${req.method} ${req.url} from ${req.ip}`);
     next();
 });
 
-app.use(cors());
+app.use(cors({
+    origin: true, // Allow all origins for dev, or specify the frontend URL
+    credentials: true // Allow cookies
+}));
 app.use(express.json() as any);
+app.use(cookieParser());
 
 // --- DATABASE CONNECTION ---
 let sequelize: Sequelize;
 
 console.log(`Initializing Database...`);
-console.log(`Dialect: ${DB_DIALECT}`);
 if (DB_DIALECT === 'mysql') {
-    console.log(`Connecting to MySQL at ${DB_HOST}:${DB_PORT} as ${DB_USER}...`);
     sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
         host: DB_HOST,
         port: DB_PORT,
         dialect: 'mysql',
         logging: false,
-        pool: {
-            max: 5, // Reduced max connections to prevent overloading weak networks
-            min: 0,
-            acquire: 60000, // Increased to 60s to allow time for reconnection
-            idle: 20000     // Close idle connections after 20s to avoid stale TCP issues
-        },
-        dialectOptions: {
-            connectTimeout: 60000
-        },
-        retry: {
-            match: [
-                /SequelizeConnectionError/,
-                /SequelizeConnectionRefusedError/,
-                /SequelizeHostNotFoundError/,
-                /SequelizeHostNotReachableError/,
-                /InvalidConnectionError/,
-                /ConnectionTerminatedError/,
-                /ECONNRESET/,
-                /ETIMEDOUT/
-            ],
-            max: 3 // Retry up to 3 times on connection failure
-        }
+        pool: { max: 5, min: 0, acquire: 60000, idle: 20000 },
+        dialectOptions: { connectTimeout: 60000 },
     });
 } else {
-    console.log(`Using SQLite storage: ${DB_STORAGE}`);
     sequelize = new Sequelize({
         dialect: 'sqlite',
         storage: DB_STORAGE,
@@ -70,6 +54,18 @@ if (DB_DIALECT === 'mysql') {
 }
 
 // --- MODELS ---
+
+class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
+    declare id: CreationOptional<string>;
+    declare username: string;
+    declare passwordHash: string;
+}
+
+(User as any).init({
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    username: { type: DataTypes.STRING, allowNull: false, unique: true },
+    passwordHash: { type: DataTypes.STRING, allowNull: false }
+}, { sequelize, modelName: 'User' });
 
 class Category extends Model<InferAttributes<Category>, InferCreationAttributes<Category>> {
   declare id: CreationOptional<string>;
@@ -132,15 +128,44 @@ class TimeBlock extends Model<InferAttributes<TimeBlock>, InferCreationAttribute
   modelName: 'TimeBlock',
 });
 
+// --- MIDDLEWARE ---
+const verifyToken = (req: any, res: any, next: any) => {
+    const token = req.cookies.token;
+    if (!token) {
+        return res.status(401).json({ error: 'Access denied. Please login.' });
+    }
+    try {
+        const verified = jwt.verify(token, JWT_SECRET);
+        req.user = verified;
+        next();
+    } catch (err) {
+        res.status(400).json({ error: 'Invalid token' });
+    }
+};
+
 // --- HELPER ---
 const getTodayStr = () => new Date().toISOString().split('T')[0];
 
 // --- SEEDER ---
 const seedData = async () => {
   try {
+    // 1. Seed Default User
+    const userCount = await (User as any).count();
+    if (userCount === 0) {
+        console.log('Creating Admin User...');
+        const salt = await bcrypt.genSalt(10);
+        const hash = await bcrypt.hash('password123', salt);
+        await (User as any).create({
+            username: 'admin',
+            passwordHash: hash
+        });
+        console.log('Admin user created: admin / password123');
+    }
+
+    // 2. Seed Data
     const catCount = await (Category as any).count();
     if (catCount === 0) {
-      console.log('Seeding Database...');
+      console.log('Seeding Database Categories...');
       const today = getTodayStr();
 
       // Create Categories
@@ -230,8 +255,52 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', database: DB_DIALECT });
 });
 
-// Admin / Test Routes
-app.post('/api/reset', async (req, res) => {
+// Auth Routes
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const user = await (User as any).findOne({ where: { username } });
+        if (!user) return res.status(400).json({ error: 'User not found' });
+
+        const validPass = await bcrypt.compare(password, user.passwordHash);
+        if (!validPass) return res.status(400).json({ error: 'Invalid password' });
+
+        const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
+        
+        // IMPORTANT: httpOnly prevents XSS stealing the token
+        res.cookie('token', token, { 
+            httpOnly: true, 
+            secure: false, // Set to true in production with HTTPS
+            sameSite: 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        } as any);
+
+        res.json({ success: true, user: { id: user.id, username: user.username } });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Login failed' });
+    }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+    res.clearCookie('token');
+    res.json({ success: true });
+});
+
+app.get('/api/auth/me', verifyToken, async (req, res) => {
+    try {
+        const user = await (User as any).findByPk((req as any).user.id, {
+            attributes: ['id', 'username']
+        });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Admin / Test Routes (Protected)
+app.post('/api/reset', verifyToken, async (req, res) => {
     try {
         await (TimeBlock as any).destroy({ where: {}, truncate: true });
         await (Category as any).destroy({ where: {}, truncate: true });
@@ -242,7 +311,7 @@ app.post('/api/reset', async (req, res) => {
     }
 });
 
-app.post('/api/seed', async (req, res) => {
+app.post('/api/seed', verifyToken, async (req, res) => {
     try {
         await seedData();
         res.json({ success: true, message: 'Database seeded (if empty).' });
@@ -253,7 +322,7 @@ app.post('/api/seed', async (req, res) => {
 });
 
 // Categories
-app.get('/api/categories', async (req, res) => {
+app.get('/api/categories', verifyToken, async (req, res) => {
   try {
     const categories = await (Category as any).findAll();
     res.json(categories);
@@ -263,7 +332,7 @@ app.get('/api/categories', async (req, res) => {
   }
 });
 
-app.post('/api/categories', async (req, res) => {
+app.post('/api/categories', verifyToken, async (req, res) => {
   try {
     const { name, type } = req.body;
     const category = await (Category as any).create({ name, type });
@@ -273,7 +342,7 @@ app.post('/api/categories', async (req, res) => {
   }
 });
 
-app.delete('/api/categories/:id', async (req, res) => {
+app.delete('/api/categories/:id', verifyToken, async (req, res) => {
   try {
     await (Category as any).destroy({ where: { id: req.params.id } });
     res.json({ success: true });
@@ -283,13 +352,12 @@ app.delete('/api/categories/:id', async (req, res) => {
 });
 
 // Time Blocks
-app.get('/api/blocks', async (req, res) => {
+app.get('/api/blocks', verifyToken, async (req, res) => {
   try {
     const { type, date } = req.query; // 'planned' or 'actual', 'YYYY-MM-DD'
     const isPlanned = type === 'planned';
     const whereClause: any = { isPlanned };
     
-    // Only filter by date if provided, otherwise return all (or default to today in UI)
     if (date) {
         whereClause.date = date;
     }
@@ -305,10 +373,9 @@ app.get('/api/blocks', async (req, res) => {
   }
 });
 
-app.post('/api/blocks', async (req, res) => {
+app.post('/api/blocks', verifyToken, async (req, res) => {
   try {
     const { date, ...rest } = req.body;
-    // Ensure date is set, otherwise default to today
     const blockDate = date || getTodayStr();
     
     console.log(`[API] Creating Block: ${rest.title} (${rest.durationMinutes}m) on ${blockDate}`);
@@ -320,7 +387,7 @@ app.post('/api/blocks', async (req, res) => {
   }
 });
 
-app.put('/api/blocks/:id', async (req, res) => {
+app.put('/api/blocks/:id', verifyToken, async (req, res) => {
     try {
         await (TimeBlock as any).update(req.body, { where: { id: req.params.id } });
         res.json({ success: true });
@@ -329,7 +396,7 @@ app.put('/api/blocks/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/blocks/:id', async (req, res) => {
+app.delete('/api/blocks/:id', verifyToken, async (req, res) => {
     try {
         await (TimeBlock as any).destroy({ where: { id: req.params.id } });
         res.json({ success: true });
@@ -339,13 +406,12 @@ app.delete('/api/blocks/:id', async (req, res) => {
 });
 
 // History Endpoint for Trends
-app.get('/api/history', async (req, res) => {
+app.get('/api/history', verifyToken, async (req, res) => {
     try {
-        // Fetch all actual blocks, aggregated by date
         const blocks = await (TimeBlock as any).findAll({
             where: { 
                 isPlanned: false, 
-                type: 'focus' // Only count focus time for the heatmap
+                type: 'focus' 
             },
             attributes: [
                 'date',
@@ -354,8 +420,6 @@ app.get('/api/history', async (req, res) => {
             group: ['date'],
             raw: true
         });
-        
-        // Transform result: [{ date: '2023-10-24', totalMinutes: 120 }, ...]
         res.json(blocks);
     } catch (err) {
         console.error(err);
@@ -366,34 +430,24 @@ app.get('/api/history', async (req, res) => {
 // --- INIT ---
 const startServer = async () => {
   try {
-    // Attempt to connect to DB
     await sequelize.authenticate();
     console.log(`Database connected (${DB_DIALECT}) on ${DB_HOST}:${DB_PORT}`);
     
     try {
-        // Using alter: true to update schema if it exists
-        // Wrapped in try/catch because SQLite + alter can be buggy with complex changes
         await sequelize.sync({ alter: true }); 
     } catch (syncError) {
-        console.warn("Sync with { alter: true } failed. Falling back to simple sync. (This is common with SQLite when schema changes conflict with existing data).");
+        console.warn("Sync with { alter: true } failed. Falling back to simple sync.");
         console.error(syncError);
-        await sequelize.sync(); // Fallback
+        await sequelize.sync(); 
     }
 
     await seedData();
     
-    // Bind to 0.0.0.0 for better container compatibility
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server running on http://0.0.0.0:${PORT}`);
     });
   } catch (error) {
-    console.error('----------------------------------------');
-    console.error('DATABASE CONNECTION FAILED');
-    console.error(`Host: ${DB_HOST}`);
-    console.error(`User: ${DB_USER}`);
-    console.error(`Error Code: ${(error as any).parent?.code}`); // e.g., 'ECONNREFUSED'
-    console.error(`Message: ${(error as any).message}`);
-    console.error('----------------------------------------');
+    console.error('DATABASE CONNECTION FAILED', error);
   }
 };
 
