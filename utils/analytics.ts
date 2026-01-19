@@ -155,8 +155,8 @@ export const calculateScheduleMetrics = (planned: TimeBlock[], actual: TimeBlock
     const unplannedMinutes = totalActCount - totalOverlapCount;
     
     // Strict Adherence = % of Past Plan that was actually executed
-    // If no plan in the past, default to 100% (perfect adherence to nothing)
-    const adherenceRate = pastPlanCount > 0 ? Math.round((pastOverlapCount / pastPlanCount) * 100) : 100;
+    // If no plan in the past, default to 0%
+    const adherenceRate = pastPlanCount > 0 ? Math.round((pastOverlapCount / pastPlanCount) * 100) : 0;
     
     return {
         missedMinutes,
