@@ -243,7 +243,8 @@ app.get('/api/history', verifyToken, async (req, res) => {
     const userId = (req as any).user.id;
     try {
         const blocks = await (TimeBlock as any).findAll({
-            where: { userId, isPlanned: false, type: 'focus' },
+            // Include focus, meeting, and other (exclude breaks implicitly by listing productive types)
+            where: { userId, isPlanned: false, type: ['focus', 'meeting', 'other'] },
             attributes: ['date', [sequelize.fn('SUM', sequelize.col('durationMinutes')), 'totalMinutes']],
             group: ['date'],
             raw: true

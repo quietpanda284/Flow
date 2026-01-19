@@ -56,16 +56,16 @@ export const calculateCategoryStats = (
 };
 
 /**
- * Calculates the hour of the day with the most 'focus' type activity.
+ * Calculates the hour of the day with the most 'productive' (non-break) type activity.
  */
-export const getPeakFocusHour = (blocks: TimeBlock[]): string => {
-  const focusBlocks = blocks.filter(b => b.type === 'focus');
-  if (focusBlocks.length === 0) return 'N/A';
+export const getPeakProductiveHour = (blocks: TimeBlock[]): string => {
+  const productiveBlocks = blocks.filter(b => b.type !== 'break');
+  if (productiveBlocks.length === 0) return 'N/A';
 
   // Array representing 24 hours of the day
   const hourCounts = new Array(24).fill(0);
 
-  focusBlocks.forEach(block => {
+  productiveBlocks.forEach(block => {
     const startHour = parseInt(block.startTime.split(':')[0], 10);
     // Simple heuristic: attribute duration to the start hour
     // A more complex version would distribute minutes across crossing hours
@@ -84,10 +84,10 @@ export const getPeakFocusHour = (blocks: TimeBlock[]): string => {
 };
 
 /**
- * Calculates total minutes spent on 'focus' type blocks.
+ * Calculates total minutes spent on productive (non-break) blocks.
  */
-export const getTotalFocusMinutes = (blocks: TimeBlock[]): number => {
-    return blocks.filter(b => b.type === 'focus').reduce((acc, b) => acc + b.durationMinutes, 0);
+export const getTotalProductiveMinutes = (blocks: TimeBlock[]): number => {
+    return blocks.filter(b => b.type !== 'break').reduce((acc, b) => acc + b.durationMinutes, 0);
 };
 
 /**

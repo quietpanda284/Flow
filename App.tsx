@@ -11,7 +11,7 @@ import { ConnectionWarning } from './components/ConnectionWarning';
 import { LoginPage } from './components/LoginPage';
 import { TimeBlock, Category } from './types';
 import { getCategories, getActualBlocks, getPlannedBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock, getFocusHistory } from './services/api';
-import { getPeakFocusHour, getTotalFocusMinutes, formatDuration, calculateScheduleMetrics } from './utils/analytics';
+import { getPeakProductiveHour, getTotalProductiveMinutes, formatDuration, calculateScheduleMetrics } from './utils/analytics';
 import { Loader2, LogOut } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 
@@ -110,8 +110,8 @@ export default function App() {
   } = useMemo(() => calculateScheduleMetrics(plannedBlocks, actualBlocks), [plannedBlocks, actualBlocks]);
   
   // Dynamic Trends Data
-  const currentFocusMinutes = getTotalFocusMinutes(actualBlocks);
-  const peakFocusHour = getPeakFocusHour(actualBlocks);
+  const currentProductiveMinutes = getTotalProductiveMinutes(actualBlocks);
+  const peakProductiveHour = getPeakProductiveHour(actualBlocks);
 
   const handleAddBlock = async (newBlock: TimeBlock) => {
     const blockWithDate = { ...newBlock, date: todayStr };
@@ -276,14 +276,14 @@ export default function App() {
                 <Heatmap history={history} />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-card border border-border p-6 rounded-xl">
-                        <h3 className="text-gray-400 text-sm mb-2">Today's Focus</h3>
-                        <p className="text-2xl font-bold text-white">{formatDuration(currentFocusMinutes)}</p>
-                        <p className="text-xs text-accent-focus mt-1">Deep Work Recorded</p>
+                        <h3 className="text-gray-400 text-sm mb-2">Today's Productivity</h3>
+                        <p className="text-2xl font-bold text-white">{formatDuration(currentProductiveMinutes)}</p>
+                        <p className="text-xs text-accent-focus mt-1">Total Work Recorded</p>
                     </div>
                     <div className="bg-card border border-border p-6 rounded-xl">
-                        <h3 className="text-gray-400 text-sm mb-2">Peak Focus Hour</h3>
-                        <p className="text-2xl font-bold text-white">{peakFocusHour}</p>
-                        <p className="text-xs text-gray-500 mt-1">Most productive time</p>
+                        <h3 className="text-gray-400 text-sm mb-2">Peak Productive Hour</h3>
+                        <p className="text-2xl font-bold text-white">{peakProductiveHour}</p>
+                        <p className="text-xs text-gray-500 mt-1">Most active time</p>
                     </div>
                     <div className="bg-card border border-border p-6 rounded-xl">
                         <h3 className="text-gray-400 text-sm mb-2">Schedule Adherence</h3>

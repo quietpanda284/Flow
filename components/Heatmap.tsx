@@ -43,8 +43,10 @@ export const Heatmap: React.FC<HeatmapProps> = ({ history }) => {
     // Create a Map for O(1) lookups: 'YYYY-MM-DD' -> minutes
     const historyMap = new Map<string, number>();
     history.forEach(item => {
-        historyMap.set(item.date, item.totalMinutes);
-        grandTotal += item.totalMinutes; // Note: this sums the provided history, which might be less than 365 days
+        // Ensure numeric type (Sequelize aggregation might return string)
+        const mins = Number(item.totalMinutes) || 0;
+        historyMap.set(item.date, mins);
+        grandTotal += mins; 
     });
 
     // Generate last 365 days
@@ -77,8 +79,8 @@ export const Heatmap: React.FC<HeatmapProps> = ({ history }) => {
       <div className="w-full max-w-5xl">
         <div className="flex justify-between items-end mb-6">
             <div>
-                <h2 className="text-xl font-bold text-white mb-1">Focus Consistency</h2>
-                <p className="text-sm text-gray-500">{totalMinutes.toLocaleString()} minutes of deep work recorded</p>
+                <h2 className="text-xl font-bold text-white mb-1">Productivity Consistency</h2>
+                <p className="text-sm text-gray-500">{totalMinutes.toLocaleString()} minutes of productive work recorded</p>
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500">
                 <span>Less</span>
@@ -102,7 +104,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ history }) => {
                     {/* Tooltip */}
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 border border-gray-700">
                         <div className="font-bold">{day.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric'})}</div>
-                        <div className="text-gray-400">{day.minutes}m focus</div>
+                        <div className="text-gray-400">{day.minutes}m productive</div>
                     </div>
                 </div>
                 ))}
