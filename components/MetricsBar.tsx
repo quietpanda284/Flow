@@ -55,10 +55,6 @@ export const MetricsBar: React.FC<MetricsBarProps> = ({
 
       {/* Adherence Rate (Schedule Fidelity) */}
       <div className="bg-card border border-border rounded-xl p-5 flex flex-col justify-center relative overflow-hidden group">
-         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Activity size={64} className="text-purple-400" />
-        </div>
-
         <div className="flex justify-between items-center h-full relative z-10">
             <div>
                  <h3 className="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-2">Adherence Rate</h3>
