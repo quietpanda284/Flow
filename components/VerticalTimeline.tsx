@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { CATEGORY_COLORS, MASTER_CATEGORIES } from '../constants';
 import { TimeBlock, CategoryType, Category } from '../types';
@@ -68,6 +69,20 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
   const [blockTitle, setBlockTitle] = useState('');
   const [blockType, setBlockType] = useState<CategoryType>('focus');
   const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
+
+  // Current Time State
+  const [currentTime, setCurrentTime] = useState(() => {
+    const now = new Date();
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      setCurrentTime(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Scroll to current time on mount
   useEffect(() => {
@@ -400,14 +415,12 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
             ))}
 
             {/* Current Time Indicator */}
-            {viewMode === 'review' && (
-              <div 
-                  className="absolute w-full border-t-2 border-red-500 z-30 pointer-events-none"
-                  style={{ top: `${getPosition('14:15')}px` }}
-              >
-                  <div className="absolute left-16 -translate-y-1/2 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,1)]"></div>
-              </div>
-            )}
+            <div 
+                className="absolute w-full border-t-2 border-red-500 z-30 pointer-events-none"
+                style={{ top: `${getPosition(currentTime)}px` }}
+            >
+                <div className="absolute left-16 -translate-y-1/2 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,1)]"></div>
+            </div>
 
             {/* PLANNED BLOCKS */}
             {plannedBlocks.map((block) => (
