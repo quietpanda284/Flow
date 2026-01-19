@@ -55,6 +55,13 @@ export default function App() {
   const dayName = today.toLocaleDateString('en-US', { weekday: 'long' });
   const fullDate = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
+  // Reset navigation to Home when user logs out
+  useEffect(() => {
+    if (!user) {
+      setCurrentPage('Home');
+    }
+  }, [user]);
+
   // Fetch logic extracted to function for reuse
   const fetchData = async (background = false) => {
     if (!user) return; // Don't fetch if not logged in
@@ -98,7 +105,7 @@ export default function App() {
     missedMinutes, 
     unplannedMinutes, 
     adherenceRate,
-    totalPlannedMinutes,
+    totalPlannedMinutes, 
     totalActualMinutes 
   } = useMemo(() => calculateScheduleMetrics(plannedBlocks, actualBlocks), [plannedBlocks, actualBlocks]);
   
