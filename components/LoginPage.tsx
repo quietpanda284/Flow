@@ -46,8 +46,6 @@ const LoginContainer = ({
             if (isRegistering) {
                 const res = await registerUser(username, password);
                 if (res.success) {
-                    // Register sets the cookie. We can just "login" to refresh context or force a reload.
-                    // Calling login with the same creds will just work and update context.
                     await login(username, password);
                 } else {
                     throw new Error(res.error || "Registration failed");
@@ -64,7 +62,7 @@ const LoginContainer = ({
     };
 
     return (
-        <div className="min-h-screen bg-[#0f1117] flex flex-col items-center justify-center p-4 font-display">
+        <div className="min-h-screen bg-[#0f1117] flex flex-col items-center justify-center p-4">
             <div className="mb-8 select-none animate-in fade-in slide-in-from-top-4 duration-700">
                 <svg 
                     width="80" 
@@ -93,45 +91,42 @@ const LoginContainer = ({
                 </svg>
             </div>
 
-            <div className="w-full max-w-md bg-card border border-border rounded-2xl p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-500 transition-all">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-3 bg-[#0f1117] rounded-xl border border-border">
-                        {isRegistering ? <UserPlus className="text-accent-focus" size={24} /> : <Lock className="text-accent-focus" size={24} />}
+            <div className="w-full max-w-sm bg-card border border-border rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-500 transition-all">
+                <div className="flex items-center gap-3 mb-6 justify-center">
+                    <div className="p-2 bg-[#0f1117] rounded-lg border border-border">
+                        {isRegistering ? <UserPlus className="text-accent-focus" size={20} /> : <Lock className="text-accent-focus" size={20} />}
                     </div>
-                    <div>
-                        <h1 className="text-2xl text-white tracking-wide">{isRegistering ? 'New Operative' : 'Welcome Back'}</h1>
-                        <p className="text-sm text-gray-500 font-sans">
-                            {isRegistering ? 'Initialize your access credentials.' : 'Enter your credentials to access mission control.'}
-                        </p>
-                    </div>
+                    <h1 className="text-2xl text-white tracking-wide font-display mt-1">
+                        {isRegistering ? 'Create Account' : 'Welcome Back'}
+                    </h1>
                 </div>
 
                 {error && (
-                    <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-3 text-red-400 text-sm animate-in fade-in slide-in-from-top-2 font-sans">
-                        <AlertCircle size={18} />
+                    <div className="mb-5 p-2.5 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-400 text-xs animate-in fade-in slide-in-from-top-2 font-sans">
+                        <AlertCircle size={16} className="shrink-0" />
                         {error}
                     </div>
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-xs uppercase font-bold text-gray-500 mb-1.5 ml-1 tracking-wider">Username</label>
+                        <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1 ml-1 tracking-wider font-sans">Username</label>
                         <input 
                             type="text" 
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-accent-focus transition-colors font-display tracking-wide text-lg"
-                            placeholder="admin"
+                            className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-lg px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-accent-focus transition-colors font-sans text-sm"
+                            placeholder="Enter username"
                             autoFocus
                         />
                     </div>
                     <div>
-                        <label className="block text-xs uppercase font-bold text-gray-500 mb-1.5 ml-1 tracking-wider">Password</label>
+                        <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1 ml-1 tracking-wider font-sans">Password</label>
                         <input 
                             type="password" 
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-accent-focus transition-colors font-display tracking-wide text-lg"
+                            className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-lg px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-accent-focus transition-colors font-sans text-sm"
                             placeholder="••••••••"
                         />
                     </div>
@@ -139,38 +134,26 @@ const LoginContainer = ({
                     <button 
                         type="submit"
                         disabled={isSubmitting || !username || !password}
-                        className="w-full bg-accent-focus hover:bg-accent-focus/90 text-black font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed group tracking-wider text-xl"
+                        className="w-full bg-accent-focus hover:bg-accent-focus/90 text-black font-bold py-2.5 rounded-lg transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-50 disabled:cursor-not-allowed group tracking-wide text-base font-display"
                     >
                         {isSubmitting ? (
-                            <Loader2 className="animate-spin" size={20} />
+                            <Loader2 className="animate-spin" size={18} />
                         ) : (
                             <>
-                                {isRegistering ? 'Create Account' : 'Access Dashboard'} 
-                                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                {isRegistering ? 'Create Account' : 'Login'} 
+                                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                             </>
                         )}
                     </button>
                 </form>
 
-                <div className="mt-6 text-center text-xs text-gray-600 font-sans border-t border-border pt-4">
-                    {isRegistering ? (
-                        <>
-                            Already have credentials?{' '}
-                            <button onClick={() => { setIsRegistering(false); setError(''); }} className="text-accent-focus hover:underline font-bold">
-                                Login Here
-                            </button>
-                        </>
-                    ) : (
-                        <>
-                            Need an account?{' '}
-                            <button onClick={() => { setIsRegistering(true); setError(''); }} className="text-accent-focus hover:underline font-bold">
-                                Initialize System
-                            </button>
-                            <div className="mt-2 text-[10px] text-gray-700">
-                                Default Login: <span className="font-mono text-gray-500">admin</span> / <span className="font-mono text-gray-500">password123</span>
-                            </div>
-                        </>
-                    )}
+                <div className="mt-5 text-center pt-4 border-t border-border">
+                    <button 
+                        onClick={() => { setIsRegistering(!isRegistering); setError(''); }} 
+                        className="text-xs text-gray-500 hover:text-white transition-colors font-sans"
+                    >
+                        {isRegistering ? 'Back to Login' : 'Create Account'}
+                    </button>
                 </div>
             </div>
         </div>
