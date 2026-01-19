@@ -57,7 +57,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     if (timerState === TimerState.RUNNING) {
       document.title = `${formatTime(timeLeft)} - ${isFocus ? 'Focus' : 'Break'}`;
     } else {
-      document.title = 'FlowState Dashboard';
+      document.title = 'Flow';
     }
   }, [timeLeft, timerState, isFocus]);
 

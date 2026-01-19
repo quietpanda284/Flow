@@ -38,7 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
             fill="none" 
             xmlns="http://www.w3.org/2000/svg"
             className="drop-shadow-[0_0_5px_rgba(0,255,148,0.4)]"
-            aria-label="FlowState Logo"
+            aria-label="Flow Logo"
         >
             <text 
                 x="50%" 

@@ -27,6 +27,12 @@ const getColor = (intensity: number) => {
   }
 };
 
+const getLocalDateStr = (date: Date) => {
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().split('T')[0];
+};
+
 export const Heatmap: React.FC<HeatmapProps> = ({ history }) => {
   
   const { weeks, totalMinutes } = useMemo(() => {
@@ -43,17 +49,18 @@ export const Heatmap: React.FC<HeatmapProps> = ({ history }) => {
 
     // Generate last 365 days
     for (let i = 0; i < DAYS_IN_YEAR; i++) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - (DAYS_IN_YEAR - 1 - i));
+        const d = new Date(today);
+        d.setDate(d.getDate() - (DAYS_IN_YEAR - 1 - i));
         
-        const dateStr = date.toISOString().split('T')[0];
+        // Use local date string to match backend storage format
+        const dateStr = getLocalDateStr(d);
         const minutes = historyMap.get(dateStr) || 0;
         const intensity = calculateIntensity(minutes);
         
         // Check if it matches today to highlight
         const isToday = i === DAYS_IN_YEAR - 1;
 
-        data.push({ date, intensity, minutes, isToday });
+        data.push({ date: d, intensity, minutes, isToday });
     }
 
     // Group by weeks for the grid layout

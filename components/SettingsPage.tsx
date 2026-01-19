@@ -68,7 +68,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ isDevMode, onToggleD
                 <div className="mt-12 pt-6 border-t border-border flex justify-between items-center text-xs text-gray-600">
                     <div className="flex items-center gap-2">
                         <Info size={14} />
-                        <span>FlowState v1.0.0</span>
+                        <span>Flow v1.0.0</span>
                     </div>
                     <span>Build 2023.10.24</span>
                 </div>
