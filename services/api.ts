@@ -1,7 +1,8 @@
 
 import { CategoryStat, TimeBlock, CategoryType, Category } from '../types';
 
-const API_URL = 'http://127.0.0.1:3006/api';
+// Hardcoded to LAN IP as requested.
+const API_URL = 'http://192.168.1.11:3006/api';
 
 /**
  * Helper to handle fetch with timeout and JSON parsing.
