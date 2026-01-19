@@ -37,6 +37,15 @@ if (DB_DIALECT === 'mysql') {
         port: DB_PORT,
         dialect: 'mysql',
         logging: false,
+        pool: {
+            max: 10,
+            min: 0,
+            acquire: 30000,
+            idle: 10000
+        },
+        dialectOptions: {
+            connectTimeout: 60000 // Increase connection timeout for slower networks
+        }
     });
 } else {
     console.log(`Using SQLite storage: ${DB_STORAGE}`);

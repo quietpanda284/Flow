@@ -18,6 +18,12 @@ async function fetchWithTimeout(resource: string, options: RequestInit = {}) {
   try {
     const response = await fetch(`${API_URL}${resource}`, {
       ...options,
+      headers: {
+        ...options.headers,
+        // Critical for ngrok: tells the tunnel to skip the "Visit Site" html warning page
+        // which causes JSON parsing errors and makes the app look offline.
+        'ngrok-skip-browser-warning': 'true', 
+      },
       signal: controller.signal
     });
     clearTimeout(id);
