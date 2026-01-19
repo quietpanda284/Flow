@@ -28,9 +28,13 @@ export default function App() {
   const [connectionError, setConnectionError] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
 
-  // Date Formatting
+  // Date Formatting (LOCAL TIME to match Timer)
   const today = new Date();
-  const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+  // Get YYYY-MM-DD in local time
+  const offset = today.getTimezoneOffset();
+  const localDate = new Date(today.getTime() - (offset*60*1000));
+  const todayStr = localDate.toISOString().split('T')[0];
+  
   const dayName = today.toLocaleDateString('en-US', { weekday: 'long' });
   const fullDate = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 

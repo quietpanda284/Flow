@@ -274,9 +274,11 @@ app.post('/api/blocks', async (req, res) => {
     // Ensure date is set, otherwise default to today
     const blockDate = date || getTodayStr();
     
+    console.log(`[API] Creating Block: ${rest.title} (${rest.durationMinutes}m) on ${blockDate}`);
     const block = await (TimeBlock as any).create({ ...rest, date: blockDate });
     res.json(block);
   } catch (err) {
+    console.error("[API] Failed to create block:", err);
     res.status(400).json({ error: 'Failed to create block' });
   }
 });

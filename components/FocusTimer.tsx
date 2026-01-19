@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2, Zap } from 'lucide-react';
+import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2, Zap, Save } from 'lucide-react';
 import { TimerState, CategoryType, Category, TimeBlock } from '../types';
 import { getCategories, addCategory, deleteCategory, addTimeBlock } from '../services/api';
 
@@ -22,6 +22,9 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   const [mode, setMode] = useState<TimerMode>('FOCUS');
   const [timeLeft, setTimeLeft] = useState(MODES.FOCUS.minutes * 60);
   
+  // Feedback State
+  const [lastSavedMessage, setLastSavedMessage] = useState<string | null>(null);
+
   // Category Management State
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,17 +57,31 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     }
   }, [timeLeft, timerState]);
 
-  // Helper to get formatted time string HH:MM
+  // Helper to get formatted time string HH:MM (Local Time)
   const getCurrentTimeStr = (date: Date) => {
       return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   };
 
+  // Helper to get Local Date String YYYY-MM-DD
+  const getLocalDateStr = (date: Date) => {
+      const offset = date.getTimezoneOffset();
+      const localDate = new Date(date.getTime() - (offset*60*1000));
+      return localDate.toISOString().split('T')[0];
+  };
+
+  const showFeedback = (msg: string) => {
+      setLastSavedMessage(msg);
+      setTimeout(() => setLastSavedMessage(null), 3000);
+  };
+
   const saveSession = async (actualMinutes?: number) => {
     const now = new Date();
-    // Default to full duration if no actual minutes provided (timer complete)
-    const durationMinutes = Math.round(actualMinutes ?? MODES[mode].minutes);
+    // Use Math.max to ensure even 59s rounds up to 1m if passed to this function
+    const rawMinutes = actualMinutes ?? MODES[mode].minutes;
+    const durationMinutes = Math.max(1, Math.round(rawMinutes));
     
-    if (durationMinutes < 1) return; // Skip if less than 1 minute
+    // Safety check, though handleStop should catch this
+    if (durationMinutes < 1) return;
 
     // Calculate start time based on duration
     const startDate = new Date(now.getTime() - durationMinutes * 60000);
@@ -95,27 +112,25 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         type: type,
         categoryId: categoryId,
         isPlanned: false, // This is an actual record
-        date: new Date().toISOString().split('T')[0]
+        date: getLocalDateStr(now) // Use LOCAL date to match dashboard
     };
+
+    console.log(`[Timer] Saving block: ${durationMinutes}m on ${newBlock.date}`);
 
     try {
         await addTimeBlock(newBlock, false);
+        showFeedback(`Saved ${durationMinutes}m session`);
         if (onTimerComplete) onTimerComplete();
-        console.log(`Timer session saved: ${durationMinutes}m`);
     } catch (error) {
         console.error("Failed to save timer session", error);
+        showFeedback("Failed to save session");
     }
   };
 
   const handleSimulateSession = async () => {
     const now = new Date();
     const durationMinutes = 25;
-    
-    // Calculate start time based on duration
     const startDate = new Date(now.getTime() - durationMinutes * 60000);
-    
-    const startTimeStr = getCurrentTimeStr(startDate);
-    const endTimeStr = getCurrentTimeStr(now);
     
     // Use current settings or defaults
     let categoryId = 'custom';
@@ -132,19 +147,19 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         id: crypto.randomUUID(), 
         title: title,
         app: 'Dev Simulation',
-        startTime: startTimeStr,
-        endTime: endTimeStr,
+        startTime: getCurrentTimeStr(startDate),
+        endTime: getCurrentTimeStr(now),
         durationMinutes: durationMinutes,
         type: type,
         categoryId: categoryId,
         isPlanned: false, 
-        date: new Date().toISOString().split('T')[0]
+        date: getLocalDateStr(now)
     };
 
     try {
         await addTimeBlock(newBlock, false);
+        showFeedback("Simulated 25m Saved");
         if (onTimerComplete) onTimerComplete();
-        console.log("Simulated 25m session saved");
     } catch (error) {
         console.error("Failed to save simulated session", error);
     }
@@ -170,7 +185,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [timerState, mode, activeCategory]); // Re-bind if dependencies change to ensure correct capture in saveSession
+  }, [timerState, mode, activeCategory]); 
 
   const switchMode = (newMode: TimerMode) => {
     setMode(newMode);
@@ -186,18 +201,26 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
 
   const handleStart = () => setTimerState(TimerState.RUNNING);
   const handlePause = () => setTimerState(TimerState.PAUSED);
+  
   const handleStop = () => {
-    // Check if we should save partial progress
+    // Capture state at the moment of stopping
     const totalSeconds = MODES[mode].minutes * 60;
     const elapsedSeconds = totalSeconds - timeLeft;
     
-    // If user manually stops and meaningful time (>60s) has passed, save it
-    if (elapsedSeconds >= 60 && timerState !== TimerState.IDLE) {
-        saveSession(elapsedSeconds / 60);
-    }
+    console.log(`[Timer] Stop requested. Elapsed: ${elapsedSeconds}s`);
 
+    // Reset UI immediately
     setTimerState(TimerState.IDLE);
     setTimeLeft(MODES[mode].minutes * 60);
+
+    // Save Logic - Threshold: 60 seconds
+    // We check against 59 to account for slight interval drifts
+    if (elapsedSeconds >= 59) {
+        const minutes = elapsedSeconds / 60;
+        saveSession(minutes);
+    } else {
+        console.log(`[Timer] Session too short to save (<60s)`);
+    }
   };
 
   const handleAddCategory = async () => {
@@ -237,6 +260,14 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     <div className="bg-card border border-border rounded-xl p-8 flex flex-col h-full max-w-2xl mx-auto relative shadow-2xl overflow-y-auto custom-scrollbar">
         {/* Decorative background glow based on mode */}
       <div className={`absolute -top-32 -right-32 w-64 h-64 rounded-full blur-[100px] opacity-20 transition-all duration-700 pointer-events-none ${mode === 'FOCUS' ? 'bg-accent-focus' : 'bg-accent-break'} ${timerState === TimerState.RUNNING ? 'scale-125 opacity-30' : ''}`} />
+
+      {/* Feedback Toast */}
+      <div className={`absolute top-4 right-4 z-50 transition-all duration-300 ${lastSavedMessage ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
+          <div className="bg-accent-focus/10 border border-accent-focus/30 text-accent-focus px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg backdrop-blur-md">
+              <Save size={14} />
+              {lastSavedMessage}
+          </div>
+      </div>
 
       {/* Header & Mode Selector */}
       <div className="flex flex-col items-center mb-8 z-10 relative">
