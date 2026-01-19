@@ -16,7 +16,20 @@ import { Loader2 } from 'lucide-react';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('Home');
-  const [isDevMode, setIsDevMode] = useState(false); // Developer Mode State
+  
+  // Developer Mode State - Persisted in LocalStorage
+  const [isDevMode, setIsDevMode] = useState(() => {
+    try {
+      return localStorage.getItem('flowstate_dev_mode') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
+  // Save to LocalStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('flowstate_dev_mode', String(isDevMode));
+  }, [isDevMode]);
 
   const [actualBlocks, setActualBlocks] = useState<TimeBlock[]>([]);
   const [plannedBlocks, setPlannedBlocks] = useState<TimeBlock[]>([]);
