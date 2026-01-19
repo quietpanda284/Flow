@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2, Zap, Save } from 'lucide-react';
+import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2, Zap, Save, RefreshCw } from 'lucide-react';
 import { TimerState, CategoryType, Category, TimeBlock } from '../types';
 import { getCategories, addCategory, deleteCategory, addTimeBlock } from '../services/api';
 
-type TimerMode = 'FOCUS' | 'SHORT_BREAK' | 'LONG_BREAK';
+type TimerVariant = 'FOCUS_25' | 'FOCUS_50' | 'BREAK_5' | 'BREAK_10';
 
-const MODES = {
-  FOCUS: { label: 'Focus', minutes: 25, color: 'text-accent-focus', bg: 'bg-accent-focus', icon: Brain },
-  SHORT_BREAK: { label: 'Short Break', minutes: 5, color: 'text-accent-break', bg: 'bg-accent-break', icon: Coffee },
-  LONG_BREAK: { label: 'Long Break', minutes: 10, color: 'text-accent-break', bg: 'bg-accent-break', icon: Battery },
+const MODES: Record<TimerVariant, { label: string; minutes: number; color: string; bg: string; icon: any }> = {
+  FOCUS_25: { label: 'Focus', minutes: 25, color: 'text-accent-focus', bg: 'bg-accent-focus', icon: Brain },
+  FOCUS_50: { label: 'Deep Focus', minutes: 50, color: 'text-accent-focus', bg: 'bg-accent-focus', icon: Brain },
+  BREAK_5: { label: 'Short Break', minutes: 5, color: 'text-accent-break', bg: 'bg-accent-break', icon: Coffee },
+  BREAK_10: { label: 'Long Break', minutes: 10, color: 'text-accent-break', bg: 'bg-accent-break', icon: Battery },
 };
 
 interface FocusTimerProps {
@@ -19,8 +20,8 @@ interface FocusTimerProps {
 
 export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMode = false }) => {
   const [timerState, setTimerState] = useState<TimerState>(TimerState.IDLE);
-  const [mode, setMode] = useState<TimerMode>('FOCUS');
-  const [timeLeft, setTimeLeft] = useState(MODES.FOCUS.minutes * 60);
+  const [mode, setMode] = useState<TimerVariant>('FOCUS_25');
+  const [timeLeft, setTimeLeft] = useState(MODES.FOCUS_25.minutes * 60);
   
   // Feedback State
   const [lastSavedMessage, setLastSavedMessage] = useState<string | null>(null);
@@ -35,6 +36,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   const [newCategoryType, setNewCategoryType] = useState<CategoryType>('focus');
   
   const timerRef = useRef<number | null>(null);
+
+  const isFocus = mode.startsWith('FOCUS');
 
   // Initial Data Fetch
   useEffect(() => {
@@ -51,11 +54,11 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   // Update Document Title
   useEffect(() => {
     if (timerState === TimerState.RUNNING) {
-      document.title = `${formatTime(timeLeft)} - Focus`;
+      document.title = `${formatTime(timeLeft)} - ${isFocus ? 'Focus' : 'Break'}`;
     } else {
       document.title = 'FlowState Dashboard';
     }
-  }, [timeLeft, timerState]);
+  }, [timeLeft, timerState, isFocus]);
 
   // Helper to get formatted time string HH:MM (Local Time)
   const getCurrentTimeStr = (date: Date) => {
@@ -89,8 +92,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     const startTimeStr = getCurrentTimeStr(startDate);
     const endTimeStr = getCurrentTimeStr(now);
 
-    const isFocus = mode === 'FOCUS';
-    
     // Determine category props
     let categoryId = 'custom';
     let type: CategoryType = isFocus ? 'focus' : 'break';
@@ -187,10 +188,29 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     };
   }, [timerState, mode, activeCategory]); 
 
-  const switchMode = (newMode: TimerMode) => {
+  // Switch between Tab Groups (Focus vs Break)
+  const switchTab = (tab: 'FOCUS' | 'BREAK') => {
+    // Default behaviors when switching tabs
+    const newMode: TimerVariant = tab === 'FOCUS' ? 'FOCUS_25' : 'BREAK_5';
     setMode(newMode);
     setTimerState(TimerState.IDLE);
     setTimeLeft(MODES[newMode].minutes * 60);
+  };
+
+  // Toggle Duration within the current tab
+  const toggleDuration = () => {
+      let newMode: TimerVariant = mode;
+      
+      switch (mode) {
+          case 'FOCUS_25': newMode = 'FOCUS_50'; break;
+          case 'FOCUS_50': newMode = 'FOCUS_25'; break;
+          case 'BREAK_5': newMode = 'BREAK_10'; break;
+          case 'BREAK_10': newMode = 'BREAK_5'; break;
+      }
+      
+      setMode(newMode);
+      setTimerState(TimerState.IDLE);
+      setTimeLeft(MODES[newMode].minutes * 60);
   };
 
   const formatTime = (seconds: number) => {
@@ -214,7 +234,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     setTimeLeft(MODES[mode].minutes * 60);
 
     // Save Logic - Threshold: 60 seconds
-    // We check against 59 to account for slight interval drifts
     if (elapsedSeconds >= 59) {
         const minutes = elapsedSeconds / 60;
         saveSession(minutes);
@@ -259,7 +278,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   return (
     <div className="bg-card border border-border rounded-xl p-8 flex flex-col h-full max-w-2xl mx-auto relative shadow-2xl overflow-y-auto custom-scrollbar">
         {/* Decorative background glow based on mode */}
-      <div className={`absolute -top-32 -right-32 w-64 h-64 rounded-full blur-[100px] opacity-20 transition-all duration-700 pointer-events-none ${mode === 'FOCUS' ? 'bg-accent-focus' : 'bg-accent-break'} ${timerState === TimerState.RUNNING ? 'scale-125 opacity-30' : ''}`} />
+      <div className={`absolute -top-32 -right-32 w-64 h-64 rounded-full blur-[100px] opacity-20 transition-all duration-700 pointer-events-none ${isFocus ? 'bg-accent-focus' : 'bg-accent-break'} ${timerState === TimerState.RUNNING ? 'scale-125 opacity-30' : ''}`} />
 
       {/* Feedback Toast */}
       <div className={`absolute top-4 right-4 z-50 transition-all duration-300 ${lastSavedMessage ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
@@ -272,29 +291,44 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       {/* Header & Mode Selector */}
       <div className="flex flex-col items-center mb-8 z-10 relative">
         <div className="flex p-1 bg-[#0f1117] rounded-lg border border-[#2a2d36] mb-6">
-            {(Object.keys(MODES) as TimerMode[]).map((m) => (
-                <button
-                    key={m}
-                    onClick={() => switchMode(m)}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                        mode === m 
-                        ? 'bg-[#2a2d36] text-white shadow-sm' 
-                        : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                >
-                    {MODES[m].label}
-                </button>
-            ))}
+            <button
+                onClick={() => switchTab('FOCUS')}
+                className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                    isFocus
+                    ? 'bg-[#2a2d36] text-white shadow-sm' 
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+            >
+                Focus
+            </button>
+            <button
+                onClick={() => switchTab('BREAK')}
+                className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                    !isFocus
+                    ? 'bg-[#2a2d36] text-white shadow-sm' 
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+            >
+                Break
+            </button>
         </div>
         
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border bg-opacity-10 ${mode === 'FOCUS' ? 'bg-green-500/10 border-green-500/20 text-accent-focus' : 'bg-orange-500/10 border-orange-500/20 text-accent-break'}`}>
+        {/* Toggleable Pill */}
+        <button 
+            onClick={toggleDuration}
+            title="Click to switch duration"
+            className={`group flex items-center gap-2 px-4 py-1.5 rounded-full border bg-opacity-10 transition-all active:scale-95 ${isFocus ? 'bg-green-500/10 border-green-500/20 text-accent-focus hover:bg-green-500/20' : 'bg-orange-500/10 border-orange-500/20 text-accent-break hover:bg-orange-500/20'}`}
+        >
             <CurrentIcon size={14} />
-            <span className="text-xs font-semibold tracking-wide uppercase">{MODES[mode].label} Mode</span>
-        </div>
+            <span className="text-xs font-semibold tracking-wide uppercase">
+                {isFocus ? 'Focus' : 'Break'} ({MODES[mode].minutes}m)
+            </span>
+            <RefreshCw size={10} className="opacity-50 group-hover:rotate-180 transition-transform duration-500" />
+        </button>
       </div>
 
       {/* Category Selector - Only visible in Focus Mode */}
-      <div className={`relative mb-8 z-30 transition-all duration-300 ${mode === 'FOCUS' ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none h-0 mb-0'}`}>
+      <div className={`relative mb-8 z-30 transition-all duration-300 ${isFocus ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none h-0 mb-0'}`}>
         <label className="text-xs text-gray-500 mb-1 block uppercase tracking-wider text-center">Current Category</label>
         
         {isAddingCategory ? (
@@ -400,7 +434,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         </div>
         <p className="text-gray-400 text-base font-medium text-center">
             {timerState === TimerState.RUNNING 
-                ? (mode === 'FOCUS' ? 'Stay focused, keep flowing.' : 'Take a breath, relax.') 
+                ? (isFocus ? 'Stay focused, keep flowing.' : 'Take a breath, relax.') 
                 : 'Ready to start?'}
         </p>
       </div>
