@@ -23,11 +23,10 @@
 body {
   background-color: #0f1117;
   color: #e5e7eb;
-  /* Updated stack: Pro -> Google -> System */
-  font-family: 'Bebas Neue Pro', 'Bebas Neue', sans-serif;
+  font-family: 'Bebas Neue Pro', sans-serif; /* Forced default */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: 0.04em; 
+  letter-spacing: 0.04em; /* Increased slightly for Bebas readability */
 }
 
 /* Ensure inputs, buttons, and other form elements inherit the correct font family */
