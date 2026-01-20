@@ -29,8 +29,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
   const isAccountActive = activePage === 'Account';
 
   return (
-    <div className="fixed left-4 top-4 bottom-4 w-[72px] bg-[#1a1d24]/90 backdrop-blur-2xl border border-white/5 rounded-2xl flex flex-col items-center py-6 z-50 shadow-2xl ring-1 ring-black/20">
-      <div className="mb-10 select-none scale-90">
+    <div className="fixed left-0 top-0 h-screen w-16 bg-[#1a1d24] border-r border-white/5 flex flex-col items-center py-6 z-50">
+      <div className="mb-10 select-none scale-75">
         <svg 
             width="44" 
             height="18" 

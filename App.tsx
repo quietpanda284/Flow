@@ -180,8 +180,8 @@ export default function App() {
     <div className="min-h-screen bg-background text-gray-200 font-sans selection:bg-accent-focus selection:text-black">
       <Sidebar activePage={currentPage} onNavigate={setCurrentPage} isDevMode={isDevMode} />
       
-      {/* Main Content Area - Updated padding for floating sidebar (pl-28) */}
-      <main className="pl-28 pr-8 py-8 min-h-screen max-w-[1600px] mx-auto relative">
+      {/* Main Content Area - Updated padding for narrow 64px sidebar */}
+      <main className="pl-20 pr-8 py-8 min-h-screen max-w-[1600px] mx-auto relative">
         
         {/* Header */}
         <header className="flex justify-between items-center mb-8">
