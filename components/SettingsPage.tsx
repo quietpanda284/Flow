@@ -33,7 +33,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ isDevMode, onToggleD
                             </div>
                             <div>
                                 <h3 className="text-white font-medium text-lg">Developer Mode</h3>
-                                <p className="text-sm text-gray-500 mt-0.5">Access database tools, seed generators, and raw data views.</p>
+                                <p className="text-sm text-gray-500 mt-0.5">Access database tools, and seed generators.</p>
                             </div>
                         </div>
                         

@@ -518,7 +518,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
         {viewMode === 'plan' && (
              <button 
                 onClick={handleManualAdd}
-                className="md:hidden p-2 bg-accent-focus text-black rounded-lg hover:bg-accent-focus/80 transition-colors shadow-lg"
+                className="p-2 bg-accent-focus text-black rounded-lg hover:bg-accent-focus/80 transition-colors shadow-lg"
             >
                 <Plus size={18} />
             </button>
