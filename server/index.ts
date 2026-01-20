@@ -113,8 +113,6 @@ const seedDefaultCategoriesForUser = async (userId: string) => {
         await (Category as any).bulkCreate([
             { userId, name: 'Development', type: 'focus' },
             { userId, name: 'Collaboration', type: 'meeting' },
-            { userId, name: 'Breaks', type: 'break' },
-            { userId, name: 'Admin', type: 'other' },
         ], { ignoreDuplicates: true });
     } catch (e: any) {
         console.warn(`[SEED] Category seeding warning: ${e.message}`);

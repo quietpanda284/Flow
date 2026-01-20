@@ -97,7 +97,7 @@ const LoginContainer = ({
                         {isRegistering ? <UserPlus className="text-accent-focus" size={24} /> : <Lock className="text-accent-focus" size={24} />}
                     </div>
                     <h1 className="text-2xl text-white tracking-wide font-display text-center">
-                        {isRegistering ? 'Create Account' : 'Welcome Back'}
+                        {isRegistering ? 'Create Account' : 'Welcome'}
                     </h1>
                 </div>
 
