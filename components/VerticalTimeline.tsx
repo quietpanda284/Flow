@@ -17,14 +17,14 @@ interface VerticalTimelineProps {
 }
 
 // Config
-const startHour = 7; 
+const startHour = 0; 
 const endHour = 24; 
 const hourHeight = 80; 
 const gridOffset = 20; // Top padding to prevent label clipping
 // Add some bottom padding too
 const totalHeight = (endHour - startHour) * hourHeight + gridOffset + 50;
 
-// Helper to convert Y pixels to minutes from start of grid (0 = 7:00 AM)
+// Helper to convert Y pixels to minutes from start of grid (0 = 0:00 AM)
 const pixelsToMinutes = (px: number, hourHeight: number) => {
   return ((px - gridOffset) / hourHeight) * 60;
 };
@@ -40,7 +40,7 @@ const minutesToTimeStr = (minutesFromStart: number, startHour: number) => {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 };
 
-// Helper to parse HH:MM to minutes relative to startHour (e.g. 7:00 = 0)
+// Helper to parse HH:MM to minutes relative to startHour (e.g. 0:00 = 0)
 const timeStrToMinutes = (timeStr: string, startHour: number) => {
     const [h, m] = timeStr.split(':').map(Number);
     return (h * 60 + m) - (startHour * 60);
@@ -116,8 +116,8 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
         if (initialScrollTop !== undefined && initialScrollTop !== null) {
             containerRef.current.scrollTop = initialScrollTop;
         } else {
-            // Scroll to around 8:30 initially (adjusting for offset)
-            containerRef.current.scrollTop = hourHeight * 1.5; 
+            // Scroll to around 8:00 AM initially (8 hours * 80px)
+            containerRef.current.scrollTop = hourHeight * 8; 
         }
     }
   }, []);
@@ -513,7 +513,12 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
   return (
     <div className="bg-card border border-border rounded-xl flex flex-col h-full relative overflow-hidden">
       <div className="flex justify-between items-center p-6 border-b border-border bg-card z-20 shadow-sm">
-        <h2 className="text-lg font-semibold text-white">Timeline <span className="text-gray-500 font-normal text-sm ml-2">{viewMode === 'plan' ? 'Planning Mode' : 'Plan vs Actual'}</span></h2>
+        <h2 className="text-lg font-semibold text-white">
+            Timeline 
+            {viewMode === 'review' && (
+                <span className="text-gray-500 font-normal text-sm ml-2">Plan vs Actual</span>
+            )}
+        </h2>
         
         {viewMode === 'plan' && (
              <button 
