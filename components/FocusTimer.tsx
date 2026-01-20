@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2, Zap, Save, RefreshCw } from 'lucide-react';
 import { TimerState, CategoryType, Category, TimeBlock } from '../types';
@@ -11,6 +10,18 @@ const MODES: Record<TimerVariant, { label: string; minutes: number; color: strin
   FOCUS_50: { label: 'Deep Focus', minutes: 50, color: 'text-accent-focus', bg: 'bg-accent-focus', icon: Brain },
   BREAK_5: { label: 'Short Break', minutes: 5, color: 'text-accent-break', bg: 'bg-accent-break', icon: Coffee },
   BREAK_10: { label: 'Long Break', minutes: 10, color: 'text-accent-break', bg: 'bg-accent-break', icon: Battery },
+};
+
+// Polyfill for randomUUID in non-secure contexts (HTTP)
+const generateUUID = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    // Fallback v4 UUID generator for insecure contexts
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
 };
 
 interface FocusTimerProps {
@@ -105,7 +116,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     }
 
     const newBlock: TimeBlock = {
-        id: crypto.randomUUID(), // Temp ID, backend assigns real one
+        id: generateUUID(), // Temp ID, backend assigns real one
         title: title,
         app: 'Timer',
         startTime: startTimeStr,
@@ -146,7 +157,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     }
 
     const newBlock: TimeBlock = {
-        id: crypto.randomUUID(), 
+        id: generateUUID(), 
         title: title,
         app: 'Dev Simulation',
         startTime: getCurrentTimeStr(startDate),
