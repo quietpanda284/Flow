@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { changePassword, deleteAccount } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Lock, UserX, AlertTriangle, Loader2, CheckCircle, ShieldAlert } from 'lucide-react';
+import { Lock, UserX, AlertTriangle, Loader2, CheckCircle, ShieldAlert, LogOut } from 'lucide-react';
 
 export const AccountPage: React.FC = () => {
     const { user, logout } = useAuth();
@@ -132,46 +132,58 @@ export const AccountPage: React.FC = () => {
                         </form>
                     </div>
 
-                    {/* Danger Zone Section */}
-                    <div className="space-y-6 md:border-l md:border-border md:pl-12">
-                         <h3 className="text-lg font-semibold text-red-400 flex items-center gap-2">
-                            <AlertTriangle size={18} />
-                            Danger Zone
-                        </h3>
-                        
-                        <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
-                            <p className="text-sm text-gray-400 mb-4 leading-relaxed">
-                                Once you delete your account, there is no going back. Please be certain.
-                            </p>
+                    {/* Danger Zone & Sign Out Section */}
+                    <div className="space-y-6 md:border-l md:border-border md:pl-12 flex flex-col h-full">
+                         <div>
+                            <h3 className="text-lg font-semibold text-red-400 flex items-center gap-2 mb-6">
+                                <AlertTriangle size={18} />
+                                Danger Zone
+                            </h3>
                             
-                            {!isDeleteConfirming ? (
-                                <button 
-                                    onClick={() => setIsDeleteConfirming(true)}
-                                    className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <UserX size={16} /> Delete Account
-                                </button>
-                            ) : (
-                                <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
-                                    <p className="text-xs text-red-300 font-bold text-center">Are you absolutely sure?</p>
-                                    <div className="flex gap-2">
-                                        <button 
-                                            onClick={handleDeleteAccount}
-                                            disabled={deleteLoading}
-                                            className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold uppercase transition-colors flex items-center justify-center gap-2"
-                                        >
-                                            {deleteLoading ? <Loader2 className="animate-spin" size={14} /> : "Yes, Delete"}
-                                        </button>
-                                        <button 
-                                            onClick={() => setIsDeleteConfirming(false)}
-                                            disabled={deleteLoading}
-                                            className="flex-1 py-2 bg-[#2a2d36] hover:bg-[#323640] text-gray-300 rounded-lg text-xs font-bold uppercase transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
+                            <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
+                                <p className="text-sm text-gray-400 mb-4 leading-relaxed">
+                                    Once you delete your account, there is no going back. Please be certain.
+                                </p>
+                                
+                                {!isDeleteConfirming ? (
+                                    <button 
+                                        onClick={() => setIsDeleteConfirming(true)}
+                                        className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <UserX size={16} /> Delete Account
+                                    </button>
+                                ) : (
+                                    <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                                        <p className="text-xs text-red-300 font-bold text-center">Are you absolutely sure?</p>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={handleDeleteAccount}
+                                                disabled={deleteLoading}
+                                                className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold uppercase transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                {deleteLoading ? <Loader2 className="animate-spin" size={14} /> : "Yes, Delete"}
+                                            </button>
+                                            <button 
+                                                onClick={() => setIsDeleteConfirming(false)}
+                                                disabled={deleteLoading}
+                                                className="flex-1 py-2 bg-[#2a2d36] hover:bg-[#323640] text-gray-300 rounded-lg text-xs font-bold uppercase transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Sign Out Button */}
+                        <div className="mt-auto pt-6 border-t border-border">
+                             <button 
+                                onClick={logout}
+                                className="w-full py-3 bg-[#2a2d36] hover:bg-[#323640] text-gray-300 hover:text-white border border-[#3f434e] rounded-lg text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+                            >
+                                <LogOut size={16} /> Sign Out
+                            </button>
                         </div>
                     </div>
                 </div>

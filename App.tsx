@@ -13,7 +13,7 @@ import { LoginPage } from './components/LoginPage';
 import { TimeBlock, Category } from './types';
 import { getCategories, getActualBlocks, getPlannedBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock, getFocusHistory } from './services/api';
 import { getPeakProductiveHour, getTotalProductiveMinutes, formatDuration, calculateScheduleMetrics } from './utils/analytics';
-import { Loader2, LogOut } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 
 export default function App() {
@@ -199,15 +199,6 @@ export default function App() {
                 {currentPage === 'Home' && <p className="text-gray-500 text-sm mt-1">Comparing intent vs reality.</p>}
             </div>
             <div className="flex items-center gap-4">
-                {/* Logout Button (Top Right) */}
-                <button 
-                    onClick={logout}
-                    className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
-                    title="Sign Out"
-                >
-                    <LogOut size={20} />
-                </button>
-
                 {isDataLoading && (
                     <div className="flex items-center gap-2 px-3 py-1 bg-card rounded-full border border-border animate-in fade-in">
                         <Loader2 className="animate-spin text-accent-focus" size={14} />
