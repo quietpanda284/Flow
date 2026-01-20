@@ -29,15 +29,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
   const isAccountActive = activePage === 'Account';
 
   return (
-    <div className="w-20 h-screen bg-card border-r border-border flex flex-col items-center py-6 fixed left-0 top-0 z-50">
-      <div className="mb-8 select-none">
+    <div className="fixed left-4 top-4 bottom-4 w-[72px] bg-[#1a1d24]/90 backdrop-blur-2xl border border-white/5 rounded-2xl flex flex-col items-center py-6 z-50 shadow-2xl ring-1 ring-black/20">
+      <div className="mb-10 select-none scale-90">
         <svg 
             width="44" 
             height="18" 
             viewBox="0 0 64 24" 
             fill="none" 
             xmlns="http://www.w3.org/2000/svg"
-            className="drop-shadow-[0_0_5px_rgba(0,255,148,0.4)]"
+            className="drop-shadow-[0_0_8px_rgba(0,255,148,0.3)]"
             aria-label="Flow Logo"
         >
             <text 
@@ -58,7 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
         </svg>
       </div>
 
-      <nav className="flex-1 w-full flex flex-col gap-6 items-center">
+      <nav className="flex-1 w-full flex flex-col gap-4 items-center">
         {items.map((item) => {
           const isActive = activePage === item.name;
           const Icon = item.icon;
@@ -66,16 +66,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
             <button
               key={item.name}
               onClick={() => handleNavigation(item.name)}
-              className={`p-3 rounded-xl transition-all duration-200 group relative ${
-                isActive ? 'bg-[#2a2d36] text-accent-focus' : 'text-gray-400 hover:text-white hover:bg-[#2a2d36]'
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 group relative ${
+                isActive 
+                  ? 'bg-accent-focus/15 text-accent-focus shadow-[0_0_15px_rgba(0,255,148,0.15)] ring-1 ring-accent-focus/20' 
+                  : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'
               }`}
             >
-              <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-              {isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-accent-focus rounded-r-full" />
-              )}
+              <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="transition-transform duration-300 group-hover:scale-110" />
+              
               {/* Tooltip */}
-              <span className="absolute left-full ml-4 px-2 py-1 bg-gray-800 text-xs text-white rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-gray-700">
+              <span className="absolute left-full ml-4 px-2.5 py-1.5 bg-[#0f1117] text-xs font-medium text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10 translate-x-2 group-hover:translate-x-0">
                 {item.name}
               </span>
             </button>
@@ -83,37 +83,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
         })}
       </nav>
 
-      {/* Account Button */}
-      <button 
-        onClick={() => handleNavigation('Account')}
-        className={`p-3 rounded-xl transition-all duration-200 mt-auto mb-4 group relative ${
-            isAccountActive ? 'bg-[#2a2d36] text-white' : 'text-gray-400 hover:text-white hover:bg-[#2a2d36]'
-        }`}
-      >
-        <User size={24} strokeWidth={isAccountActive ? 2.5 : 2} />
-        {isAccountActive && (
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-white rounded-r-full" />
-        )}
-        <span className="absolute left-full ml-4 px-2 py-1 bg-gray-800 text-xs text-white rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-gray-700">
-            Account
-        </span>
-      </button>
+      <div className="flex flex-col gap-4 mb-2 w-full items-center">
+        {/* Account Button */}
+        <button 
+            onClick={() => handleNavigation('Account')}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 group relative ${
+                isAccountActive 
+                ? 'bg-white/10 text-white ring-1 ring-white/20' 
+                : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'
+            }`}
+        >
+            <User size={20} strokeWidth={isAccountActive ? 2.5 : 2} />
+            <span className="absolute left-full ml-4 px-2.5 py-1.5 bg-[#0f1117] text-xs font-medium text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10 translate-x-2 group-hover:translate-x-0">
+                Account
+            </span>
+        </button>
 
-      {/* Settings Button */}
-      <button 
-        onClick={() => handleNavigation('Settings')}
-        className={`p-3 rounded-xl transition-all duration-200 group relative ${
-            isSettingsActive ? 'bg-[#2a2d36] text-white' : 'text-gray-400 hover:text-white hover:bg-[#2a2d36]'
-        }`}
-      >
-        <Settings size={24} strokeWidth={isSettingsActive ? 2.5 : 2} />
-        {isSettingsActive && (
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-white rounded-r-full" />
-        )}
-        <span className="absolute left-full ml-4 px-2 py-1 bg-gray-800 text-xs text-white rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-gray-700">
-            Settings
-        </span>
-      </button>
+        {/* Settings Button */}
+        <button 
+            onClick={() => handleNavigation('Settings')}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 group relative ${
+                isSettingsActive 
+                ? 'bg-white/10 text-white ring-1 ring-white/20' 
+                : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'
+            }`}
+        >
+            <Settings size={20} strokeWidth={isSettingsActive ? 2.5 : 2} />
+            <span className="absolute left-full ml-4 px-2.5 py-1.5 bg-[#0f1117] text-xs font-medium text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10 translate-x-2 group-hover:translate-x-0">
+                Settings
+            </span>
+        </button>
+      </div>
     </div>
   );
 };
