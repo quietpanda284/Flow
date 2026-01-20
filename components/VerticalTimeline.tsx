@@ -402,10 +402,25 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
   };
 
   const saveBlock = () => {
-    if (!draftBlock || !blockTitle.trim() || !selectedCategoryId) return;
+    if (!draftBlock || !blockTitle.trim()) return;
 
-    const selectedCategory = categories.find(c => c.id === selectedCategoryId);
-    const blockType = selectedCategory ? selectedCategory.type : 'focus';
+    // Require category for non-break items
+    if (!isBreakMode && !selectedCategoryId) return;
+
+    let finalCategoryId = selectedCategoryId;
+    let blockType: CategoryType = 'focus';
+
+    if (isBreakMode) {
+        blockType = 'break';
+        // If we don't have a category ID selected, try to find a default break category
+        if (!finalCategoryId) {
+            const breakCat = categories.find(c => c.type === 'break');
+            if (breakCat) finalCategoryId = breakCat.id;
+        }
+    } else {
+        const selectedCategory = categories.find(c => c.id === selectedCategoryId);
+        blockType = selectedCategory ? selectedCategory.type : 'focus';
+    }
 
     if (editingBlockId && onUpdateBlock) {
         // Update existing
@@ -417,7 +432,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
             endTime: draftBlock.end,
             durationMinutes: draftBlock.duration,
             type: blockType,
-            categoryId: selectedCategoryId, 
+            categoryId: finalCategoryId, 
         };
         onUpdateBlock(updatedBlock);
     } else {
@@ -430,7 +445,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
             endTime: draftBlock.end,
             durationMinutes: draftBlock.duration,
             type: blockType,
-            categoryId: selectedCategoryId, 
+            categoryId: finalCategoryId, 
         };
         onAddBlock(newBlock);
     }
@@ -749,7 +764,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
                         {/* Action Button */}
                         <button 
                             onClick={saveBlock}
-                            disabled={!blockTitle.trim() || !selectedCategoryId}
+                            disabled={!blockTitle.trim() || (!isBreakMode && !selectedCategoryId)}
                             className="w-full py-2 bg-white text-black text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {editingBlockId ? 'Update Plan' : 'Save Plan'}
