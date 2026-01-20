@@ -7,6 +7,7 @@ import { VerticalTimeline } from './components/VerticalTimeline';
 import { Heatmap } from './components/Heatmap';
 import { BackendTest } from './components/BackendTest';
 import { SettingsPage } from './components/SettingsPage';
+import { AccountPage } from './components/AccountPage';
 import { ConnectionWarning } from './components/ConnectionWarning';
 import { LoginPage } from './components/LoginPage';
 import { TimeBlock, Category } from './types';
@@ -191,7 +192,9 @@ export default function App() {
                      currentPage === 'Trends' ? 'Productivity Trends' : 
                      currentPage === 'Plan' ? 'Daily Planning' : 
                      currentPage === 'Test' ? 'System Tools' : 
-                     currentPage === 'Settings' ? 'Preferences' : 'Focus Session'}
+                     currentPage === 'Settings' ? 'Preferences' : 
+                     currentPage === 'Account' ? 'Account' :
+                     'Focus Session'}
                 </h1>
                 {currentPage === 'Home' && <p className="text-gray-500 text-sm mt-1">Comparing intent vs reality.</p>}
             </div>
@@ -311,6 +314,12 @@ export default function App() {
         {currentPage === 'Settings' && (
             <div className="flex items-center justify-center min-h-[600px] h-[calc(100vh-160px)]">
                 <SettingsPage isDevMode={isDevMode} onToggleDevMode={setIsDevMode} />
+            </div>
+        )}
+
+        {currentPage === 'Account' && (
+            <div className="flex items-center justify-center min-h-[600px] h-[calc(100vh-160px)]">
+                <AccountPage />
             </div>
         )}
 

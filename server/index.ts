@@ -181,6 +181,48 @@ app.get('/api/auth/me', verifyToken, async (req, res) => {
     }
 });
 
+app.post('/api/auth/change-password', verifyToken, async (req, res) => {
+    const userId = (req as any).user.id;
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: 'Missing fields' });
+    }
+
+    try {
+        const user = await (User as any).findByPk(userId);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!valid) return res.status(400).json({ error: 'Incorrect current password' });
+
+        const salt = await bcrypt.genSalt(10);
+        user.passwordHash = await bcrypt.hash(newPassword, salt);
+        await user.save();
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to change password' });
+    }
+});
+
+app.delete('/api/auth/account', verifyToken, async (req, res) => {
+    const userId = (req as any).user.id;
+    try {
+        // Cascade delete (simulated manually for SQLite safety/consistency across DBs)
+        await (TimeBlock as any).destroy({ where: { userId } });
+        await (Category as any).destroy({ where: { userId } });
+        await (User as any).destroy({ where: { id: userId } });
+        
+        res.clearCookie('token');
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to delete account' });
+    }
+});
+
 // --- DATA ROUTES (SCOPED TO USER) ---
 
 app.get('/api/categories', verifyToken, async (req, res) => {

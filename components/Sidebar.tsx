@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Settings, Home, Timer, Zap, Map, Database } from 'lucide-react';
+import { Settings, Home, Timer, Zap, Map, Database, User } from 'lucide-react';
 
 interface SidebarProps {
   activePage: string;
@@ -27,6 +26,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
   };
 
   const isSettingsActive = activePage === 'Settings';
+  const isAccountActive = activePage === 'Account';
 
   return (
     <div className="w-20 h-screen bg-card border-r border-border flex flex-col items-center py-6 fixed left-0 top-0 z-50">
@@ -83,10 +83,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
         })}
       </nav>
 
+      {/* Account Button */}
+      <button 
+        onClick={() => handleNavigation('Account')}
+        className={`p-3 rounded-xl transition-all duration-200 mt-auto mb-4 group relative ${
+            isAccountActive ? 'bg-[#2a2d36] text-white' : 'text-gray-400 hover:text-white hover:bg-[#2a2d36]'
+        }`}
+      >
+        <User size={24} strokeWidth={isAccountActive ? 2.5 : 2} />
+        {isAccountActive && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-white rounded-r-full" />
+        )}
+        <span className="absolute left-full ml-4 px-2 py-1 bg-gray-800 text-xs text-white rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-gray-700">
+            Account
+        </span>
+      </button>
+
       {/* Settings Button */}
       <button 
         onClick={() => handleNavigation('Settings')}
-        className={`p-3 rounded-xl transition-all duration-200 mt-auto group relative ${
+        className={`p-3 rounded-xl transition-all duration-200 group relative ${
             isSettingsActive ? 'bg-[#2a2d36] text-white' : 'text-gray-400 hover:text-white hover:bg-[#2a2d36]'
         }`}
       >

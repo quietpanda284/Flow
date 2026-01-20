@@ -78,6 +78,22 @@ export const checkAuthStatus = async (): Promise<any> => {
     return await fetchWithTimeout('/auth/me');
 };
 
+export const changePassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {
+    await fetchWithTimeout('/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword })
+    });
+    return true;
+};
+
+export const deleteAccount = async (): Promise<boolean> => {
+    await fetchWithTimeout('/auth/account', {
+        method: 'DELETE'
+    });
+    return true;
+};
+
 // --- Categories Service ---
 
 export const getCategories = async (): Promise<Category[]> => {
