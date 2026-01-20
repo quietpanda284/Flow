@@ -199,12 +199,7 @@ export default function App() {
                 {currentPage === 'Home' && <p className="text-gray-500 text-sm mt-1">Comparing intent vs reality.</p>}
             </div>
             <div className="flex items-center gap-4">
-                {isDataLoading && (
-                    <div className="flex items-center gap-2 px-3 py-1 bg-card rounded-full border border-border animate-in fade-in">
-                        <Loader2 className="animate-spin text-accent-focus" size={14} />
-                        <span className="text-xs text-gray-400">Syncing...</span>
-                    </div>
-                )}
+                {/* Syncing Indicator removed */}
                 {!isDataLoading && connectionError && (
                     <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 rounded-full border border-red-500/20 animate-in fade-in">
                         <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
