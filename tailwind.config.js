@@ -10,10 +10,10 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // Default sans stack for body text and inputs - Now Bebas Neue Pro as requested
-        sans: ['"Bebas Neue Pro"', 'sans-serif'],
-        // Display stack for Headings/Logos
-        display: ['"Bebas Neue Pro"', 'sans-serif'],
+        // Default sans stack: Pro (Local) -> Standard (Google) -> System
+        sans: ['"Bebas Neue Pro"', '"Bebas Neue"', 'sans-serif'],
+        // Display stack
+        display: ['"Bebas Neue Pro"', '"Bebas Neue"', 'sans-serif'],
       },
       colors: {
         background: '#0f1117',
