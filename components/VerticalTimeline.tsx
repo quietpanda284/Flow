@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import { CATEGORY_COLORS } from '../constants';
 import { TimeBlock, CategoryType, Category } from '../types';
@@ -282,16 +281,23 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
         // Commit changes
         const originalBlock = plannedBlocks.find(b => b.id === activeBlockId);
         if (originalBlock) {
-            const startMins = timeStrToMinutes(temporaryBlockState.startTime, startHour);
-            const endMins = startMins + temporaryBlockState.duration;
-            const endTimeStr = minutesToTimeStr(endMins, startHour);
+            // Check if actual changes occurred to avoid unnecessary API calls
+            // This prevents the "Database Error" on double-clicks where 0 rows are updated
+            const hasChanged = originalBlock.startTime !== temporaryBlockState.startTime || 
+                               originalBlock.durationMinutes !== temporaryBlockState.duration;
 
-            onUpdateBlock({
-                ...originalBlock,
-                startTime: temporaryBlockState.startTime,
-                endTime: endTimeStr,
-                durationMinutes: temporaryBlockState.duration
-            });
+            if (hasChanged) {
+                const startMins = timeStrToMinutes(temporaryBlockState.startTime, startHour);
+                const endMins = startMins + temporaryBlockState.duration;
+                const endTimeStr = minutesToTimeStr(endMins, startHour);
+
+                onUpdateBlock({
+                    ...originalBlock,
+                    startTime: temporaryBlockState.startTime,
+                    endTime: endTimeStr,
+                    durationMinutes: temporaryBlockState.duration
+                });
+            }
         }
     }
 
