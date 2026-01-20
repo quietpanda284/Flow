@@ -34,6 +34,10 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   const [mode, setMode] = useState<TimerVariant>('FOCUS_25');
   const [timeLeft, setTimeLeft] = useState(MODES.FOCUS_25.minutes * 60);
   
+  // Memory State: Remembers the last used duration for each type
+  const [lastFocusMode, setLastFocusMode] = useState<TimerVariant>('FOCUS_25');
+  const [lastBreakMode, setLastBreakMode] = useState<TimerVariant>('BREAK_5');
+
   // Feedback State
   const [lastSavedMessage, setLastSavedMessage] = useState<string | null>(null);
 
@@ -203,8 +207,10 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   // Switch between Tab Groups (Focus vs Break)
   const switchTab = (tab: 'FOCUS' | 'BREAK') => {
     if (isTimerActive) return;
-    // Default behaviors when switching tabs
-    const newMode: TimerVariant = tab === 'FOCUS' ? 'FOCUS_25' : 'BREAK_5';
+    
+    // Load preference from memory instead of hard defaults
+    const newMode: TimerVariant = tab === 'FOCUS' ? lastFocusMode : lastBreakMode;
+    
     setMode(newMode);
     setTimerState(TimerState.IDLE);
     setTimeLeft(MODES[newMode].minutes * 60);
@@ -223,6 +229,14 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       }
       
       setMode(newMode);
+      
+      // Update Memory State
+      if (newMode.startsWith('FOCUS')) {
+          setLastFocusMode(newMode);
+      } else {
+          setLastBreakMode(newMode);
+      }
+
       setTimerState(TimerState.IDLE);
       setTimeLeft(MODES[newMode].minutes * 60);
   };
