@@ -1,4 +1,3 @@
-
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -10,10 +9,10 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // Default sans stack for body text and inputs - Now Bebas Neue Pro as requested
-        sans: ['"Bebas Neue Pro"', 'sans-serif'],
+        // Default sans stack for body text and inputs
+        sans: ['"Inter"', 'sans-serif'],
         // Display stack for Headings/Logos
-        display: ['"Bebas Neue Pro"', 'sans-serif'],
+        display: ['"Bebas Neue"', 'sans-serif'],
       },
       colors: {
         background: '#0f1117',

@@ -411,7 +411,7 @@ const start = async () => {
 
     } catch (error) {
         console.error('FATAL: Server failed to start', error);
-        process.exit(1);
+        (process as any).exit(1);
     }
 };
 

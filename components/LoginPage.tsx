@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { registerUser } from '../services/api';
@@ -79,8 +78,8 @@ const LoginContainer = ({
                         y="52%" 
                         dominantBaseline="middle" 
                         textAnchor="middle" 
-                        fontFamily="'Bebas Neue Pro', sans-serif" 
-                        fontWeight="800" 
+                        fontFamily="'Bebas Neue', sans-serif" 
+                        fontWeight="400" 
                         fontSize="18" 
                         stroke="#00FF94" 
                         strokeWidth="1.5" 
