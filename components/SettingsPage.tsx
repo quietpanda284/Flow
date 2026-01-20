@@ -69,7 +69,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ isDevMode, onToggleD
                         <Info size={14} />
                         <span>Flow v1.0.0</span>
                     </div>
-                    <span>Build 2025.05.21</span>
+                    <span>Build 2026.01.21</span>
                 </div>
              </div>
         </div>
