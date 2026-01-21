@@ -118,7 +118,7 @@ export const WeeklyView: React.FC<WeeklyViewProps> = ({ blocks, currentDate }) =
                                             className={`absolute left-1 right-1 rounded px-1.5 py-0.5 text-[10px] overflow-hidden border-l-2 ${CATEGORY_COLORS[block.type]} bg-opacity-30 border-opacity-100 hover:brightness-110 transition-all cursor-pointer`}
                                             style={{
                                                 top: `${getPosition(block.startTime)}px`,
-                                                height: `${Math.max(16, getHeight(block.durationMinutes))}px`, // min height for visibility
+                                                height: `${Math.max(16, getHeight(block.durationMinutes)) - 2}px`, // Subtract 2px for gap
                                                 borderColor: block.type === 'focus' ? '#00FF94' : block.type === 'meeting' ? '#4D96FF' : block.type === 'break' ? '#FFB347' : '#A0A0A0',
                                             }}
                                             title={`${block.title} (${block.startTime} - ${block.endTime})`}
