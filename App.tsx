@@ -196,7 +196,6 @@ export default function App() {
                      currentPage === 'Account' ? 'Account' :
                      'Focus Session'}
                 </h1>
-                {currentPage === 'Home' && <p className="text-gray-500 text-sm mt-1">Comparing intent vs reality.</p>}
             </div>
             <div className="flex items-center gap-4">
                 {/* Syncing Indicator removed */}
