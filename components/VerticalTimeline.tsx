@@ -514,10 +514,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
     <div className="bg-card border border-border rounded-xl flex flex-col h-full relative overflow-hidden">
       <div className="flex justify-between items-center px-5 py-2 border-b border-border bg-card z-20 shadow-sm shrink-0 h-14">
         <h2 className="text-base font-semibold text-white">
-            Timeline 
-            {viewMode === 'review' && (
-                <span className="text-gray-500 font-normal text-xs ml-2">Plan vs Actual</span>
-            )}
+            Timeline
         </h2>
         
         {viewMode === 'plan' && (
