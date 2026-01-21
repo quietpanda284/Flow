@@ -512,20 +512,20 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
 
   return (
     <div className="bg-card border border-border rounded-xl flex flex-col h-full relative overflow-hidden">
-      <div className="flex justify-between items-center p-6 border-b border-border bg-card z-20 shadow-sm">
-        <h2 className="text-lg font-semibold text-white">
+      <div className="flex justify-between items-center px-5 py-2 border-b border-border bg-card z-20 shadow-sm shrink-0 h-14">
+        <h2 className="text-base font-semibold text-white">
             Timeline 
             {viewMode === 'review' && (
-                <span className="text-gray-500 font-normal text-sm ml-2">Plan vs Actual</span>
+                <span className="text-gray-500 font-normal text-xs ml-2">Plan vs Actual</span>
             )}
         </h2>
         
         {viewMode === 'plan' && (
              <button 
                 onClick={handleManualAdd}
-                className="p-2 bg-accent-focus text-black rounded-lg hover:bg-accent-focus/80 transition-colors shadow-lg"
+                className="p-1.5 bg-accent-focus text-black rounded-md hover:bg-accent-focus/80 transition-colors shadow-lg"
             >
-                <Plus size={18} />
+                <Plus size={16} />
             </button>
         )}
 
