@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { resetDatabase, seedDatabase } from '../services/api';
-import { Database, RefreshCw, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Database, RefreshCw, Trash2, CheckCircle, AlertCircle, AlertTriangle } from 'lucide-react';
 
 interface BackendTestProps {
     onDataChanged?: () => void;
@@ -9,12 +10,14 @@ interface BackendTestProps {
 export const BackendTest: React.FC<BackendTestProps> = ({ onDataChanged }) => {
     const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    
+    // Modal State
+    const [activeModal, setActiveModal] = useState<'reset' | 'seed' | null>(null);
 
-    const handleReset = async () => {
-        if (!window.confirm('Are you sure? This will delete all your categories and time blocks.')) return;
-        
+    const executeReset = async () => {
         setIsLoading(true);
         setStatus(null);
+        setActiveModal(null);
         
         try {
             const success = await resetDatabase();
@@ -30,9 +33,10 @@ export const BackendTest: React.FC<BackendTestProps> = ({ onDataChanged }) => {
         setIsLoading(false);
     };
 
-    const handleSeed = async () => {
+    const executeSeed = async () => {
         setIsLoading(true);
         setStatus(null);
+        setActiveModal(null);
         
         try {
             // Calculate local date YYYY-MM-DD so data appears on today's timeline
@@ -72,7 +76,7 @@ export const BackendTest: React.FC<BackendTestProps> = ({ onDataChanged }) => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 relative z-10">
                     <button
-                        onClick={handleSeed}
+                        onClick={() => setActiveModal('seed')}
                         disabled={isLoading}
                         className="flex flex-col items-center p-8 bg-[#0f1117] border border-border rounded-xl hover:border-accent-meeting hover:bg-accent-meeting/5 transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-accent-meeting/10"
                     >
@@ -86,7 +90,7 @@ export const BackendTest: React.FC<BackendTestProps> = ({ onDataChanged }) => {
                     </button>
 
                     <button
-                        onClick={handleReset}
+                        onClick={() => setActiveModal('reset')}
                         disabled={isLoading}
                         className="flex flex-col items-center p-8 bg-[#0f1117] border border-border rounded-xl hover:border-red-500 hover:bg-red-500/5 transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-red-500/10"
                     >
@@ -107,6 +111,49 @@ export const BackendTest: React.FC<BackendTestProps> = ({ onDataChanged }) => {
                     </div>
                 )}
             </div>
+
+            {/* Custom Modal Overlay */}
+            {activeModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#1a1d24] border border-[#2a2d36] rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 relative" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-6">
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className={`p-3 rounded-full shrink-0 ${activeModal === 'reset' ? 'bg-red-500/10 text-red-500' : 'bg-accent-meeting/10 text-accent-meeting'}`}>
+                                    {activeModal === 'reset' ? <AlertTriangle size={24} /> : <AlertCircle size={24} />}
+                                </div>
+                                <h3 className="text-xl font-bold text-white">
+                                    {activeModal === 'reset' ? 'Reset Database' : 'Generate Data'}
+                                </h3>
+                            </div>
+                            
+                            <p className="text-gray-400 mb-8 leading-relaxed text-sm">
+                                {activeModal === 'reset' 
+                                    ? 'Are you sure you want to proceed? This action is irreversible and will permanently delete all categories and time blocks associated with your account.' 
+                                    : 'This will populate your database with sample categories and time blocks for today. If you already have data, this may create overlaps.'}
+                            </p>
+
+                            <div className="flex gap-3 justify-end">
+                                <button 
+                                    onClick={() => setActiveModal(null)}
+                                    className="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={activeModal === 'reset' ? executeReset : executeSeed}
+                                     className={`px-4 py-2 rounded-lg text-sm font-bold text-white transition-colors shadow-lg flex items-center gap-2 ${
+                                        activeModal === 'reset' 
+                                        ? 'bg-red-600 hover:bg-red-700' 
+                                        : 'bg-accent-meeting hover:bg-blue-600'
+                                    }`}
+                                >
+                                    {activeModal === 'reset' ? 'Yes, Delete All' : 'Confirm Generate'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
