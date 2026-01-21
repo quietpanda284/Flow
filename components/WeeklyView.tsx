@@ -124,9 +124,6 @@ export const WeeklyView: React.FC<WeeklyViewProps> = ({ blocks, currentDate }) =
                                             title={`${block.title} (${block.startTime} - ${block.endTime})`}
                                         >
                                             <div className="font-bold truncate text-white leading-tight">{block.title}</div>
-                                            {block.durationMinutes >= 30 && (
-                                                <div className="text-white/60 truncate">{block.durationMinutes}m</div>
-                                            )}
                                         </div>
                                     );
                                 })}
