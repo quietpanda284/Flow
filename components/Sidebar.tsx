@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Settings, Home, Timer, Zap, Map, Database, User } from 'lucide-react';
 
@@ -29,11 +30,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
   const isAccountActive = activePage === 'Account';
 
   return (
-    <div className="fixed left-0 top-0 h-screen w-16 bg-[#1a1d24] border-r border-white/5 flex flex-col items-center py-6 z-50">
-      <div className="mb-10 select-none scale-75">
+    <div className="fixed left-0 top-0 h-screen w-16 bg-[#1a1d24] border-r border-white/5 flex flex-col items-center pt-9 pb-6 z-50">
+      <div className="mb-8 select-none">
         <svg 
-            width="44" 
-            height="18" 
+            width="46" 
+            height="20" 
             viewBox="0 0 64 24" 
             fill="none" 
             xmlns="http://www.w3.org/2000/svg"
@@ -42,16 +43,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
         >
             <text 
                 x="50%" 
-                y="52%" 
+                y="55%" 
                 dominantBaseline="middle" 
                 textAnchor="middle" 
                 fontFamily="'Bebas Neue', sans-serif" 
                 fontWeight="400" 
-                fontSize="18" 
+                fontSize="24" 
                 stroke="#00FF94" 
-                strokeWidth="1.5" 
+                strokeWidth="1.2" 
                 fill="none" 
-                letterSpacing="2"
+                letterSpacing="3"
             >
                 FLOW
             </text>
