@@ -176,21 +176,18 @@ export default function App() {
       return <LoginPage />;
   }
 
-  // Helper to determine if we are in compact mode
-  const isCompactMode = currentPage === 'Plan';
-
   return (
     <div className="min-h-screen bg-background text-gray-200 font-sans selection:bg-accent-focus selection:text-black">
       <Sidebar activePage={currentPage} onNavigate={setCurrentPage} isDevMode={isDevMode} />
       
-      {/* Main Content Area - Updated padding logic for Compact Mode */}
-      <main className={`pl-20 pr-8 min-h-screen max-w-[1600px] mx-auto relative transition-all duration-300 ${isCompactMode ? 'pt-4 pb-0' : 'py-8'}`}>
+      {/* Main Content Area - Updated padding for narrow 64px sidebar */}
+      <main className="pl-20 pr-8 py-8 min-h-screen max-w-[1600px] mx-auto relative">
         
-        {/* Header - Dynamic Size */}
-        <header className={`flex justify-between items-center transition-all duration-300 ${isCompactMode ? 'mb-2' : 'mb-8'}`}>
+        {/* Header */}
+        <header className="flex justify-between items-center mb-8">
             <div>
                 {/* Applied font-display to main header */}
-                <h1 className={`font-display font-bold text-white tracking-wide transition-all duration-300 ${isCompactMode ? 'text-xl' : 'text-3xl'}`}>
+                <h1 className="text-3xl font-display font-bold text-white tracking-wide">
                     {currentPage === 'Home' ? 'Mission Control' : 
                      currentPage === 'Trends' ? 'Productivity Trends' : 
                      currentPage === 'Plan' ? 'Daily Planning' : 
@@ -199,7 +196,7 @@ export default function App() {
                      currentPage === 'Account' ? 'Account' :
                      'Focus Session'}
                 </h1>
-                {currentPage === 'Home' && <p className="text-gray-500 text-sm mt-1 animate-in fade-in">Comparing intent vs reality.</p>}
+                {currentPage === 'Home' && <p className="text-gray-500 text-sm mt-1">Comparing intent vs reality.</p>}
             </div>
             <div className="flex items-center gap-4">
                 {/* Syncing Indicator removed */}
@@ -209,7 +206,7 @@ export default function App() {
                         <span className="text-xs text-red-400">Offline</span>
                     </div>
                 )}
-                <div className={`text-right hidden sm:block border-l border-border pl-4 transition-all duration-300 ${isCompactMode ? 'scale-90 origin-right opacity-80' : ''}`}>
+                <div className="text-right hidden sm:block border-l border-border pl-4">
                     <div className="text-sm font-medium text-white">{dayName}</div>
                     <div className="text-xs text-gray-500">{fullDate}</div>
                 </div>
@@ -247,8 +244,7 @@ export default function App() {
         )}
 
         {currentPage === 'Plan' && (
-             // Increased height calculation to fill the screen now that header is smaller
-             <div className="grid grid-cols-1 gap-6 h-[calc(100vh-80px)]">
+             <div className="grid grid-cols-1 gap-6 h-[700px]">
                  <VerticalTimeline 
                     plannedBlocks={plannedBlocks} 
                     actualBlocks={[]} 
