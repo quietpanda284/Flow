@@ -652,7 +652,7 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
                     }}
                 >
                     <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-white truncate shadow-black drop-shadow-md">
+                        <span className="text-xs font-bold text-white truncate">
                             {block.title}
                         </span>
                     </div>
