@@ -1,3 +1,4 @@
+
 import { CategoryStat, TimeBlock, CategoryType, Category } from '../types';
 
 const API_URL = '/api';
@@ -117,14 +118,20 @@ export const deleteCategory = async (id: string): Promise<boolean> => {
 
 // --- Time Blocks Service ---
 
-export const getPlannedBlocks = async (date?: string): Promise<TimeBlock[]> => {
-    const query = date ? `&date=${date}` : '';
-    return await fetchWithTimeout(`/blocks?type=planned${query}`);
+export const getPlannedBlocks = async (date?: string, endDate?: string): Promise<TimeBlock[]> => {
+    let query = '?type=planned';
+    if (date) query += `&date=${date}`;
+    if (endDate) query = `?type=planned&startDate=${date}&endDate=${endDate}`; // Override if range is present
+    
+    return await fetchWithTimeout(`/blocks${query}`);
 };
 
-export const getActualBlocks = async (date?: string): Promise<TimeBlock[]> => {
-    const query = date ? `&date=${date}` : '';
-    return await fetchWithTimeout(`/blocks?type=actual${query}`);
+export const getActualBlocks = async (date?: string, endDate?: string): Promise<TimeBlock[]> => {
+    let query = '?type=actual';
+    if (date) query += `&date=${date}`;
+    if (endDate) query = `?type=actual&startDate=${date}&endDate=${endDate}`;
+    
+    return await fetchWithTimeout(`/blocks${query}`);
 };
 
 export const getFocusHistory = async (): Promise<{ date: string, totalMinutes: number }[]> => {

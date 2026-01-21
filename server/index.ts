@@ -1,10 +1,11 @@
+
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { Sequelize, DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOptional } from 'sequelize';
+import { Sequelize, DataTypes, Model, InferAttributes, InferCreationAttributes, CreationOptional, Op } from 'sequelize';
 
 // --- CONFIGURATION ---
 const PORT = 3006;
@@ -247,12 +248,18 @@ app.delete('/api/categories/:id', verifyToken, async (req, res) => {
 
 app.get('/api/blocks', verifyToken, async (req, res) => {
     const userId = (req as any).user.id;
-    const { type, date } = req.query;
+    const { type, date, startDate, endDate } = req.query;
     
     const where: any = { userId, isPlanned: type === 'planned' };
-    if (date) where.date = date;
     
-    const blocks = await (TimeBlock as any).findAll({ where, order: [['startTime', 'ASC']] });
+    // Priority: Range > Specific Date > All
+    if (startDate && endDate) {
+        where.date = { [Op.between]: [startDate, endDate] };
+    } else if (date) {
+        where.date = date;
+    }
+    
+    const blocks = await (TimeBlock as any).findAll({ where, order: [['date', 'ASC'], ['startTime', 'ASC']] });
     res.json(blocks);
 });
 

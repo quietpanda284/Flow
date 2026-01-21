@@ -1,9 +1,12 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { MetricsBar } from './components/MetricsBar';
 import { CategoryBreakdown } from './components/CategoryBreakdown';
 import { FocusTimer } from './components/FocusTimer';
 import { VerticalTimeline } from './components/VerticalTimeline';
+import { WeeklyView } from './components/WeeklyView';
+import { DateController } from './components/DateController';
 import { Heatmap } from './components/Heatmap';
 import { BackendTest } from './components/BackendTest';
 import { SettingsPage } from './components/SettingsPage';
@@ -34,6 +37,10 @@ export default function App() {
     localStorage.setItem('flowstate_dev_mode', String(isDevMode));
   }, [isDevMode]);
 
+  // Date & View State
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
+
   const [actualBlocks, setActualBlocks] = useState<TimeBlock[]>([]);
   const [plannedBlocks, setPlannedBlocks] = useState<TimeBlock[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -47,14 +54,18 @@ export default function App() {
   // Store Scroll Position for the Planning Page
   const planScrollRef = useRef<number | null>(null);
 
-  // Date Formatting (LOCAL TIME to match Timer)
-  const today = new Date();
-  const offset = today.getTimezoneOffset();
-  const localDate = new Date(today.getTime() - (offset*60*1000));
-  const todayStr = localDate.toISOString().split('T')[0];
-  
-  const dayName = today.toLocaleDateString('en-US', { weekday: 'long' });
-  const fullDate = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  // Helper to convert date to YYYY-MM-DD local
+  const toDateStr = (d: Date) => {
+    const offset = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - (offset * 60 * 1000));
+    return local.toISOString().split('T')[0];
+  };
+
+  const currentDateStr = toDateStr(currentDate);
+
+  // Date Header formatting
+  const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' });
+  const fullDate = currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   // Reset navigation to Home when user logs out
   useEffect(() => {
@@ -69,11 +80,29 @@ export default function App() {
     
     if (!background) setIsDataLoading(true);
     setConnectionError(false);
+    
+    // Calculate Date Range
+    let startStr = currentDateStr;
+    let endStr = undefined;
+
+    if (viewMode === 'week') {
+        const day = currentDate.getDay();
+        const diff = currentDate.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(currentDate);
+        monday.setDate(diff);
+        
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        
+        startStr = toDateStr(monday);
+        endStr = toDateStr(sunday);
+    }
+
     try {
         const [cats, actual, planned, hist] = await Promise.all([
             getCategories(),
-            getActualBlocks(todayStr),
-            getPlannedBlocks(todayStr),
+            getActualBlocks(startStr, endStr),
+            getPlannedBlocks(startStr, endStr),
             getFocusHistory()
         ]);
         setCategories(cats);
@@ -90,18 +119,23 @@ export default function App() {
     }
   };
 
-  // Initial Fetch & Auto-Refresh
+  // Initial Fetch & Update when date/view changes
   useEffect(() => {
     if (user) {
         fetchData(); 
-        const intervalId = setInterval(() => {
-            fetchData(true);
-        }, 30000); 
-        return () => clearInterval(intervalId);
     }
-  }, [currentPage, user]); 
+  }, [currentPage, user, currentDateStr, viewMode]); 
+  
+  // Polling
+  useEffect(() => {
+      if (!user) return;
+      const intervalId = setInterval(() => {
+            fetchData(true);
+      }, 30000); 
+      return () => clearInterval(intervalId);
+  }, [user, currentDateStr, viewMode]);
 
-  // Calculate advanced schedule metrics
+  // Calculate advanced schedule metrics (Only relevant for Today/Single Day view usually, but we calculate for whatever is loaded)
   const { 
     missedMinutes, 
     unplannedMinutes, 
@@ -115,7 +149,7 @@ export default function App() {
   const peakProductiveHour = getPeakProductiveHour(actualBlocks);
 
   const handleAddBlock = async (newBlock: TimeBlock) => {
-    const blockWithDate = { ...newBlock, date: todayStr };
+    const blockWithDate = { ...newBlock, date: currentDateStr };
     const tempBlock = { ...blockWithDate };
     setPlannedBlocks((prev) => [...prev, tempBlock]);
     
@@ -180,13 +214,12 @@ export default function App() {
     <div className="min-h-screen bg-background text-gray-200 font-sans selection:bg-accent-focus selection:text-black">
       <Sidebar activePage={currentPage} onNavigate={setCurrentPage} isDevMode={isDevMode} />
       
-      {/* Main Content Area - Updated padding for narrow 64px sidebar */}
+      {/* Main Content Area */}
       <main className="pl-20 pr-8 py-8 min-h-screen max-w-[1600px] mx-auto relative">
         
         {/* Header */}
         <header className="flex justify-between items-center mb-8">
             <div>
-                {/* Applied font-display to main header */}
                 <h1 className="text-3xl font-display font-bold text-white tracking-wide">
                     {currentPage === 'Home' ? 'Mission Control' : 
                      currentPage === 'Trends' ? 'Productivity Trends' : 
@@ -198,7 +231,6 @@ export default function App() {
                 </h1>
             </div>
             <div className="flex items-center gap-4">
-                {/* Syncing Indicator removed */}
                 {!isDataLoading && connectionError && (
                     <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 rounded-full border border-red-500/20 animate-in fade-in">
                         <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -215,24 +247,43 @@ export default function App() {
         {/* Home View (Dual Layer Timeline - Read Only) */}
         {currentPage === 'Home' && (
             <>
-                <MetricsBar 
-                    plannedMinutes={totalPlannedMinutes} 
-                    actualMinutes={totalActualMinutes}
-                    missedMinutes={missedMinutes}
-                    unplannedMinutes={unplannedMinutes}
-                    adherenceRate={adherenceRate}
-                />
+                {/* Metrics are only relevant for SINGLE DAY view usually, hide in weekly for simplicity or aggregate later */}
+                {viewMode === 'day' && (
+                    <MetricsBar 
+                        plannedMinutes={totalPlannedMinutes} 
+                        actualMinutes={totalActualMinutes}
+                        missedMinutes={missedMinutes}
+                        unplannedMinutes={unplannedMinutes}
+                        adherenceRate={adherenceRate}
+                    />
+                )}
                 
+                {/* Date Navigation for Home View */}
+                <DateController 
+                    currentDate={currentDate} 
+                    onDateChange={setCurrentDate} 
+                    viewMode={viewMode}
+                    onViewModeChange={setViewMode}
+                />
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-2 h-[600px]">
-                        <VerticalTimeline 
-                            plannedBlocks={plannedBlocks} 
-                            actualBlocks={actualBlocks}
-                            categories={categories}
-                            onAddBlock={() => {}}
-                            isInteractive={false}
-                            viewMode="review"
-                        />
+                        {viewMode === 'week' ? (
+                            <WeeklyView 
+                                blocks={actualBlocks} 
+                                currentDate={currentDate} 
+                                categories={categories} 
+                            />
+                        ) : (
+                            <VerticalTimeline 
+                                plannedBlocks={plannedBlocks} 
+                                actualBlocks={actualBlocks}
+                                categories={categories}
+                                onAddBlock={() => {}}
+                                isInteractive={false}
+                                viewMode="review"
+                            />
+                        )}
                     </div>
                     
                     <div className="lg:col-span-1 h-[600px] flex flex-col">
@@ -243,19 +294,38 @@ export default function App() {
         )}
 
         {currentPage === 'Plan' && (
-             <div className="grid grid-cols-1 gap-6 h-[700px]">
-                 <VerticalTimeline 
-                    plannedBlocks={plannedBlocks} 
-                    actualBlocks={[]} 
-                    categories={categories}
-                    onAddBlock={handleAddBlock} 
-                    onDeleteBlock={handleDeleteBlock}
-                    onUpdateBlock={handleUpdateBlock}
-                    isInteractive={true}
-                    viewMode="plan"
-                    initialScrollTop={planScrollRef.current}
-                    onScroll={(scrollTop) => { planScrollRef.current = scrollTop; }}
-                 />
+             <div className="flex flex-col h-[700px]">
+                 {/* Also add Date Controller to Plan page so they can plan future dates */}
+                 <DateController 
+                    currentDate={currentDate} 
+                    onDateChange={setCurrentDate} 
+                    viewMode={viewMode}
+                    onViewModeChange={setViewMode}
+                />
+                
+                {viewMode === 'week' ? (
+                    <div className="flex-1">
+                        <WeeklyView 
+                            blocks={plannedBlocks} 
+                            currentDate={currentDate} 
+                            categories={categories} 
+                        />
+                         <p className="text-xs text-center text-gray-500 mt-2">Switch to Day view to edit blocks</p>
+                    </div>
+                ) : (
+                     <VerticalTimeline 
+                        plannedBlocks={plannedBlocks} 
+                        actualBlocks={[]} 
+                        categories={categories}
+                        onAddBlock={handleAddBlock} 
+                        onDeleteBlock={handleDeleteBlock}
+                        onUpdateBlock={handleUpdateBlock}
+                        isInteractive={true}
+                        viewMode="plan"
+                        initialScrollTop={planScrollRef.current}
+                        onScroll={(scrollTop) => { planScrollRef.current = scrollTop; }}
+                     />
+                )}
              </div>
         )}
 
@@ -264,7 +334,7 @@ export default function App() {
                 <Heatmap history={history} />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-card border border-border p-6 rounded-xl">
-                        <h3 className="text-gray-400 text-sm mb-2">Today's Productivity</h3>
+                        <h3 className="text-gray-400 text-sm mb-2">Productivity</h3>
                         <p className="text-2xl font-bold text-white">{formatDuration(currentProductiveMinutes)}</p>
                         <p className="text-xs text-accent-focus mt-1">Total Work Recorded</p>
                     </div>
