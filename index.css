@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -29,4 +30,13 @@ input, button, select, textarea {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #3f434e;
+}
+
+/* Utility to hide scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }

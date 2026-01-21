@@ -30,8 +30,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
   const isAccountActive = activePage === 'Account';
 
   return (
-    <div className="fixed left-0 top-0 h-screen w-16 bg-[#1a1d24] border-r border-white/5 flex flex-col items-center pt-9 pb-6 z-50">
-      <div className="mb-8 select-none">
+    <div className="fixed left-0 top-0 h-screen w-16 bg-[#1a1d24] border-r border-white/5 flex flex-col items-center pt-9 pb-6 z-50 overflow-hidden">
+      <div className="mb-8 select-none shrink-0">
         <svg 
             width="46" 
             height="20" 
@@ -59,7 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
         </svg>
       </div>
 
-      <nav className="flex-1 w-full flex flex-col gap-4 items-center">
+      <nav className="flex-1 w-full flex flex-col gap-4 items-center overflow-y-auto min-h-0 no-scrollbar">
         {items.map((item) => {
           const isActive = activePage === item.name;
           const Icon = item.icon;
@@ -67,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
             <button
               key={item.name}
               onClick={() => handleNavigation(item.name)}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 group relative ${
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 group relative shrink-0 ${
                 isActive 
                   ? 'bg-accent-focus/15 text-accent-focus shadow-[0_0_15px_rgba(0,255,148,0.15)] ring-1 ring-accent-focus/20' 
                   : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'
@@ -84,7 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
         })}
       </nav>
 
-      <div className="flex flex-col gap-4 mb-2 w-full items-center">
+      <div className="flex flex-col gap-4 mb-2 w-full items-center shrink-0 pt-4">
         {/* Account Button */}
         <button 
             onClick={() => handleNavigation('Account')}
