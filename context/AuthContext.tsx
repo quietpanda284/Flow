@@ -5,12 +5,14 @@ import { checkAuthStatus, loginUser, logoutUser } from '../services/api';
 interface User {
   id: string;
   username: string;
+  isGuest?: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (u: string, p: string) => Promise<void>;
+  loginAsGuest: () => void;
   logout: () => Promise<void>;
 }
 
@@ -43,16 +45,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginAsGuest = () => {
+      setUser({ id: 'guest', username: 'Guest', isGuest: true });
+  };
+
   const logout = async () => {
     try {
-        await logoutUser();
+        if (!user?.isGuest) {
+            await logoutUser();
+        }
     } finally {
         setUser(null);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, loginAsGuest, logout }}>
       {children}
     </AuthContext.Provider>
   );

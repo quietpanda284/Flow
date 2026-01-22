@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { registerUser } from '../services/api';
-import { Lock, ArrowRight, Loader2, AlertCircle, UserPlus } from 'lucide-react';
+import { Lock, ArrowRight, Loader2, AlertCircle, UserPlus, User } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -33,7 +34,7 @@ const LoginContainer = ({
     isSubmitting, setIsSubmitting,
     error, setError 
 }: any) => {
-    const { login } = useAuth();
+    const { login, loginAsGuest } = useAuth();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -147,12 +148,25 @@ const LoginContainer = ({
                     </button>
                 </form>
 
-                <div className="mt-5 text-center pt-4 border-t border-border">
+                <div className="mt-5 text-center pt-4 border-t border-border space-y-3">
                     <button 
                         onClick={() => { setIsRegistering(!isRegistering); setError(''); }} 
-                        className="text-xs text-gray-500 hover:text-white transition-colors font-sans"
+                        className="text-xs text-gray-500 hover:text-white transition-colors font-sans block w-full"
                     >
                         {isRegistering ? 'Back to Login' : 'Create Account'}
+                    </button>
+                    
+                    <div className="flex items-center justify-center gap-2 pt-2">
+                         <div className="h-px w-12 bg-border"></div>
+                         <span className="text-[10px] text-gray-600 uppercase">or</span>
+                         <div className="h-px w-12 bg-border"></div>
+                    </div>
+
+                    <button 
+                        onClick={() => loginAsGuest()}
+                        className="w-full py-2 bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] text-gray-300 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2"
+                    >
+                        <User size={14} /> Guest Mode
                     </button>
                 </div>
             </div>

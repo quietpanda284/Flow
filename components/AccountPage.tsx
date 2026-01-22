@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { changePassword, deleteAccount } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Lock, UserX, AlertTriangle, Loader2, CheckCircle, ShieldAlert, LogOut } from 'lucide-react';
+import { Lock, UserX, AlertTriangle, Loader2, CheckCircle, ShieldAlert, LogOut, User } from 'lucide-react';
 
 export const AccountPage: React.FC = () => {
     const { user, logout } = useAuth();
@@ -57,6 +58,37 @@ export const AccountPage: React.FC = () => {
             setDeleteLoading(false);
         }
     };
+
+    if (user?.isGuest) {
+        return (
+             <div className="flex flex-col items-center justify-center h-full max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="bg-card border border-border rounded-xl p-8 w-full shadow-2xl relative overflow-hidden">
+                    <div className="flex items-center gap-5 mb-10 pb-8 border-b border-border">
+                        <div className="p-4 bg-[#0f1117] border border-border rounded-xl shadow-inner">
+                            <User className="text-gray-300" size={32} />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-bold text-white tracking-tight">Guest Account</h2>
+                            <p className="text-gray-400 mt-1">You are currently using Flow in Guest Mode.</p>
+                        </div>
+                    </div>
+                    
+                    <div className="p-4 rounded-xl bg-accent-focus/5 border border-accent-focus/20 mb-8">
+                        <p className="text-sm text-gray-300">
+                            Guest sessions are temporary and data is not saved to the cloud. Create an account to persist your data across devices and sessions.
+                        </p>
+                    </div>
+
+                    <button 
+                        onClick={logout}
+                        className="w-full py-3 bg-[#2a2d36] hover:bg-[#323640] text-gray-300 hover:text-white border border-[#3f434e] rounded-lg text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+                    >
+                        <LogOut size={16} /> Exit Guest Mode
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col items-center justify-center h-full max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">

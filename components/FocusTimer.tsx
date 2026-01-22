@@ -1,7 +1,10 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2, Zap, Save, RefreshCw } from 'lucide-react';
 import { TimerState, CategoryType, Category, TimeBlock } from '../types';
 import { getCategories, addCategory, deleteCategory, addTimeBlock } from '../services/api';
+import { MASTER_CATEGORIES } from '../constants';
+import { useAuth } from '../context/AuthContext';
 
 type TimerVariant = 'FOCUS_25' | 'FOCUS_50' | 'BREAK_5' | 'BREAK_10';
 
@@ -25,11 +28,12 @@ const generateUUID = () => {
 };
 
 interface FocusTimerProps {
-    onTimerComplete?: () => void;
+    onTimerComplete?: (block?: TimeBlock) => void;
     isDevMode?: boolean;
 }
 
 export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMode = false }) => {
+  const { user } = useAuth();
   const [timerState, setTimerState] = useState<TimerState>(TimerState.IDLE);
   const [mode, setMode] = useState<TimerVariant>('FOCUS_25');
   const [timeLeft, setTimeLeft] = useState(MODES.FOCUS_25.minutes * 60);
@@ -59,13 +63,19 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
+      if (user?.isGuest) {
+          setCategories(MASTER_CATEGORIES);
+          setActiveCategory(MASTER_CATEGORIES[0]);
+          setIsLoading(false);
+          return;
+      }
       const fetchedCats = await getCategories();
       setCategories(fetchedCats);
       if (fetchedCats.length > 0) setActiveCategory(fetchedCats[0]);
       setIsLoading(false);
     };
     loadData();
-  }, []);
+  }, [user]);
 
   // Update Document Title
   useEffect(() => {
@@ -134,10 +144,17 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
 
     console.log(`[Timer] Saving block: ${durationMinutes}m on ${newBlock.date}`);
 
+    // GUEST MODE: Don't call API
+    if (user?.isGuest) {
+        showFeedback(`Saved ${durationMinutes}m (Guest)`);
+        if (onTimerComplete) onTimerComplete(newBlock);
+        return;
+    }
+
     try {
         await addTimeBlock(newBlock, false);
         showFeedback(`Saved ${durationMinutes}m session`);
-        if (onTimerComplete) onTimerComplete();
+        if (onTimerComplete) onTimerComplete(); // Passing nothing triggers refetch
     } catch (error) {
         console.error("Failed to save timer session", error);
         showFeedback("Failed to save session");
@@ -172,6 +189,12 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         isPlanned: false, 
         date: getLocalDateStr(now)
     };
+
+    if (user?.isGuest) {
+        showFeedback("Simulated 25m (Guest)");
+        if (onTimerComplete) onTimerComplete(newBlock);
+        return;
+    }
 
     try {
         await addTimeBlock(newBlock, false);
@@ -293,6 +316,16 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         const titleToAdd = newCategoryTitle.trim();
         const typeToAdd = newCategoryType;
 
+        if (user?.isGuest) {
+            // Local mock add
+            const newCat: Category = { id: `guest-cat-${Date.now()}`, name: titleToAdd, type: typeToAdd };
+            setCategories([...categories, newCat]);
+            setActiveCategory(newCat);
+            setNewCategoryTitle('');
+            setIsAddingCategory(false);
+            return;
+        }
+
         try {
           const newCat = await addCategory(titleToAdd, typeToAdd);
           setCategories([...categories, newCat]);
@@ -306,6 +339,15 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   };
 
   const handleDeleteCategory = async (catToDelete: Category) => {
+    if (user?.isGuest) {
+         const updatedCats = categories.filter(c => c.id !== catToDelete.id);
+         setCategories(updatedCats);
+         if (activeCategory?.id === catToDelete.id) {
+             setActiveCategory(updatedCats.length > 0 ? updatedCats[0] : null);
+         }
+         return;
+    }
+
     try {
       await deleteCategory(catToDelete.id);
       const updatedCats = categories.filter(c => c.id !== catToDelete.id);

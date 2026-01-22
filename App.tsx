@@ -16,6 +16,7 @@ import { LoginPage } from './components/LoginPage';
 import { TimeBlock, Category } from './types';
 import { getCategories, getActualBlocks, getPlannedBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock, getFocusHistory } from './services/api';
 import { getPeakProductiveHour, getTotalProductiveMinutes, formatDuration, calculateScheduleMetrics } from './utils/analytics';
+import { MASTER_CATEGORIES } from './constants';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 
@@ -78,6 +79,20 @@ export default function App() {
   const fetchData = async (background = false) => {
     if (!user) return; // Don't fetch if not logged in
     
+    // GUEST MODE: Skip backend, use defaults/local only
+    if (user.isGuest) {
+        if (!background) {
+            setCategories(MASTER_CATEGORIES);
+            // In guest mode, we don't fetch "existing" blocks from backend.
+            // Blocks are maintained in state (actualBlocks, plannedBlocks).
+            // But if we switch dates, they disappear unless we used a robust local store.
+            // For now, guest mode is ephemeral per session/view. 
+            // We just ensure we don't error out.
+            setIsDataLoading(false);
+        }
+        return;
+    }
+
     if (!background) setIsDataLoading(true);
     setConnectionError(false);
     
@@ -135,7 +150,7 @@ export default function App() {
       return () => clearInterval(intervalId);
   }, [user, currentDateStr, viewMode]);
 
-  // Calculate advanced schedule metrics (Only relevant for Today/Single Day view usually, but we calculate for whatever is loaded)
+  // Calculate advanced schedule metrics
   const { 
     missedMinutes, 
     unplannedMinutes, 
@@ -151,6 +166,13 @@ export default function App() {
   const handleAddBlock = async (newBlock: TimeBlock) => {
     const blockWithDate = { ...newBlock, date: currentDateStr };
     const tempBlock = { ...blockWithDate };
+
+    // GUEST MODE: Local only
+    if (user?.isGuest) {
+        setPlannedBlocks((prev) => [...prev, { ...tempBlock, id: `guest-${Date.now()}` }]);
+        return;
+    }
+
     setPlannedBlocks((prev) => [...prev, tempBlock]);
     
     try {
@@ -168,6 +190,9 @@ export default function App() {
     const prevBlocks = [...plannedBlocks];
     setPlannedBlocks((prev) => prev.filter((b) => b.id !== blockId));
     
+    // GUEST MODE: Local only
+    if (user?.isGuest) return;
+
     try {
         const success = await deleteTimeBlock(blockId);
         if (!success) throw new Error("Delete failed");
@@ -182,6 +207,9 @@ export default function App() {
     const prevBlocks = [...plannedBlocks];
     setPlannedBlocks((prev) => prev.map((b) => (b.id === updatedBlock.id ? updatedBlock : b)));
     
+    // GUEST MODE: Local only
+    if (user?.isGuest) return;
+
     try {
         const success = await updateTimeBlock(updatedBlock);
         if (!success) throw new Error("Update failed");
@@ -192,8 +220,28 @@ export default function App() {
     }
   };
 
-  const handleTimerComplete = () => {
-      fetchData(); 
+  // Called when Focus Timer finishes or saves
+  const handleTimerComplete = (newBlock?: TimeBlock) => {
+      // GUEST MODE: Manually update local state since backend is disabled
+      if (user?.isGuest && newBlock) {
+          setActualBlocks(prev => [...prev, newBlock]);
+          
+          // Update History for Heatmap locally
+          setHistory(prev => {
+              const dateStr = newBlock.date!;
+              const minutes = newBlock.durationMinutes;
+              const existingIndex = prev.findIndex(h => h.date === dateStr);
+              if (existingIndex >= 0) {
+                  const updated = [...prev];
+                  updated[existingIndex] = { ...updated[existingIndex], totalMinutes: updated[existingIndex].totalMinutes + minutes };
+                  return updated;
+              } else {
+                  return [...prev, { date: dateStr, totalMinutes: minutes }];
+              }
+          });
+      } else {
+         fetchData(); 
+      }
   };
 
   // --- AUTH GUARD RENDER ---
@@ -235,6 +283,12 @@ export default function App() {
                     <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 rounded-full border border-red-500/20 animate-in fade-in">
                         <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                         <span className="text-xs text-red-400">Offline</span>
+                    </div>
+                )}
+                {user.isGuest && (
+                    <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-accent-focus/10 rounded-full border border-accent-focus/20">
+                        <div className="w-2 h-2 rounded-full bg-accent-focus" />
+                        <span className="text-xs text-accent-focus font-bold uppercase tracking-wider">Guest Mode</span>
                     </div>
                 )}
                 <div className="text-right hidden sm:block border-l border-border pl-4">
@@ -360,7 +414,7 @@ export default function App() {
             </div>
         </div>
 
-        {currentPage === 'Test' && isDevMode && (
+        {currentPage === 'Test' && isDevMode && !user.isGuest && (
             <div className="flex items-center justify-center min-h-[600px] h-[calc(100vh-160px)]">
                 <BackendTest onDataChanged={() => fetchData()} />
             </div>
