@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2, Zap, Save, RefreshCw } from 'lucide-react';
+import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2, Zap, Save, RefreshCw, Maximize2, Minimize2 } from 'lucide-react';
 import { TimerState, CategoryType, Category, TimeBlock } from '../types';
 import { getCategories, addCategory, deleteCategory, addTimeBlock } from '../services/api';
 import { MASTER_CATEGORIES } from '../constants';
@@ -54,7 +54,11 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   const [newCategoryTitle, setNewCategoryTitle] = useState('');
   const [newCategoryType, setNewCategoryType] = useState<CategoryType>('focus');
   
+  // Fullscreen State
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
   const timerRef = useRef<number | null>(null);
+  const fullScreenRef = useRef<HTMLDivElement>(null);
 
   const isFocus = mode.startsWith('FOCUS');
   const isTimerActive = timerState !== TimerState.IDLE;
@@ -85,6 +89,27 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       document.title = 'Flow';
     }
   }, [timeLeft, timerState, isFocus]);
+
+  // Fullscreen Listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+        setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+        fullScreenRef.current?.requestFullscreen().catch((err) => {
+             console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+        });
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    }
+  };
 
   // Helper to get formatted time string HH:MM (Local Time)
   const getCurrentTimeStr = (date: Date) => {
@@ -364,12 +389,24 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   const CurrentIcon = MODES[mode].icon;
 
   return (
-    <div className="bg-card border border-border rounded-xl p-8 flex flex-col h-full max-w-2xl mx-auto relative shadow-2xl overflow-y-auto custom-scrollbar">
+    <div 
+        ref={fullScreenRef}
+        className="bg-card border border-border rounded-xl p-8 flex flex-col h-full max-w-2xl mx-auto relative shadow-2xl overflow-y-auto custom-scrollbar"
+    >
         {/* Decorative background glow based on mode */}
       <div className={`absolute -top-32 -right-32 w-64 h-64 rounded-full blur-[100px] opacity-20 transition-all duration-700 pointer-events-none ${isFocus ? 'bg-accent-focus' : 'bg-accent-break'} ${timerState === TimerState.RUNNING ? 'scale-125 opacity-30' : ''}`} />
 
+      {/* Full Screen Toggle */}
+      <button 
+        onClick={toggleFullscreen}
+        className="absolute top-6 right-6 z-40 text-gray-500 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5"
+        title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
+      >
+        {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+      </button>
+
       {/* Feedback Toast */}
-      <div className={`absolute top-4 right-4 z-50 transition-all duration-300 ${lastSavedMessage ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
+      <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${lastSavedMessage ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
           <div className="bg-accent-focus/10 border border-accent-focus/30 text-accent-focus px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg backdrop-blur-md">
               <Save size={14} />
               {lastSavedMessage}
@@ -377,7 +414,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       </div>
 
       {/* Header & Mode Selector */}
-      <div className="flex flex-col items-center mb-8 z-10 relative">
+      <div className="flex flex-col items-center mb-8 z-10 relative mt-4">
         <div className="flex p-1 bg-[#0f1117] rounded-lg border border-[#2a2d36] mb-6">
             <button
                 onClick={() => switchTab('FOCUS')}
