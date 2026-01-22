@@ -1,5 +1,7 @@
+
 import React from 'react';
 import { Terminal, Shield, Cpu, Info } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface SettingsPageProps {
     isDevMode: boolean;
@@ -7,6 +9,9 @@ interface SettingsPageProps {
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ isDevMode, onToggleDevMode }) => {
+    const { user } = useAuth();
+    const isGuest = user?.isGuest;
+
     return (
         <div className="flex flex-col items-center justify-center h-full max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
              <div className="bg-card border border-border rounded-xl p-8 w-full shadow-2xl relative overflow-hidden">
@@ -25,24 +30,27 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ isDevMode, onToggleD
 
                 <div className="space-y-6">
                     {/* Dev Mode Toggle */}
-                    <div className="flex items-center justify-between p-5 bg-[#0f1117] border border-border rounded-xl hover:border-gray-600 transition-all duration-300 group">
+                    <div className={`flex items-center justify-between p-5 bg-[#0f1117] border border-border rounded-xl transition-all duration-300 group ${isGuest ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-600'}`}>
                         <div className="flex items-center gap-4">
-                            <div className={`p-3 rounded-lg transition-colors duration-300 ${isDevMode ? 'bg-accent-focus/10 text-accent-focus' : 'bg-gray-800 text-gray-500'}`}>
+                            <div className={`p-3 rounded-lg transition-colors duration-300 ${isDevMode && !isGuest ? 'bg-accent-focus/10 text-accent-focus' : 'bg-gray-800 text-gray-500'}`}>
                                 <Terminal size={24} />
                             </div>
                             <div>
                                 <h3 className="text-white font-medium text-lg">Developer Mode</h3>
-                                <p className="text-sm text-gray-500 mt-0.5">Access database tools, and seed generators.</p>
+                                <p className="text-sm text-gray-500 mt-0.5">
+                                    {isGuest ? 'Not available in Guest Mode' : 'Access database tools, and seed generators.'}
+                                </p>
                             </div>
                         </div>
                         
                         <button 
-                            onClick={() => onToggleDevMode(!isDevMode)}
-                            className={`w-16 h-9 rounded-full p-1 transition-all duration-300 relative focus:outline-none focus:ring-2 focus:ring-accent-focus/50 ${isDevMode ? 'bg-accent-focus' : 'bg-gray-700'}`}
+                            onClick={() => !isGuest && onToggleDevMode(!isDevMode)}
+                            disabled={!!isGuest}
+                            className={`w-16 h-9 rounded-full p-1 transition-all duration-300 relative focus:outline-none ${!isGuest ? 'focus:ring-2 focus:ring-accent-focus/50 cursor-pointer' : 'cursor-not-allowed'} ${isDevMode && !isGuest ? 'bg-accent-focus' : 'bg-gray-700'}`}
                             aria-label="Toggle Developer Mode"
                         >
-                            <div className={`w-7 h-7 bg-white rounded-full shadow-lg transform transition-transform duration-300 flex items-center justify-center ${isDevMode ? 'translate-x-7' : 'translate-x-0'}`}>
-                                {isDevMode && <div className="w-2 h-2 rounded-full bg-accent-focus" />}
+                            <div className={`w-7 h-7 bg-white rounded-full shadow-lg transform transition-transform duration-300 flex items-center justify-center ${isDevMode && !isGuest ? 'translate-x-7' : 'translate-x-0'}`}>
+                                {isDevMode && !isGuest && <div className="w-2 h-2 rounded-full bg-accent-focus" />}
                             </div>
                         </button>
                     </div>
