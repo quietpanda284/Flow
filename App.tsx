@@ -75,6 +75,9 @@ export default function App() {
     }
   }, [user]);
 
+  // Track the latest fetch request ID to ignore stale responses/errors
+  const lastFetchIdRef = useRef(0);
+
   // Fetch logic extracted to function for reuse
   const fetchData = async (background = false) => {
     if (!user) return; // Don't fetch if not logged in
@@ -83,15 +86,12 @@ export default function App() {
     if (user.isGuest) {
         if (!background) {
             setCategories(MASTER_CATEGORIES);
-            // In guest mode, we don't fetch "existing" blocks from backend.
-            // Blocks are maintained in state (actualBlocks, plannedBlocks).
-            // But if we switch dates, they disappear unless we used a robust local store.
-            // For now, guest mode is ephemeral per session/view. 
-            // We just ensure we don't error out.
             setIsDataLoading(false);
         }
         return;
     }
+
+    const fetchId = ++lastFetchIdRef.current;
 
     if (!background) setIsDataLoading(true);
     setConnectionError(false);
@@ -120,17 +120,27 @@ export default function App() {
             getPlannedBlocks(startStr, endStr),
             getFocusHistory()
         ]);
+
+        // If this is not the latest request, ignore the results
+        if (fetchId !== lastFetchIdRef.current) return;
+
         setCategories(cats);
         setActualBlocks(actual);
         setPlannedBlocks(planned);
         setHistory(hist);
         setShowWarning(false);
     } catch (error) {
+        // If this is not the latest request, ignore the error (prevent flashing)
+        if (fetchId !== lastFetchIdRef.current) return;
+
         console.error("Failed to fetch data:", error);
         setConnectionError(true);
         if (!background) setShowWarning(true);
     } finally {
-        setIsDataLoading(false);
+        // Only update loading state if this is the latest request
+        if (fetchId === lastFetchIdRef.current) {
+            setIsDataLoading(false);
+        }
     }
   };
 
