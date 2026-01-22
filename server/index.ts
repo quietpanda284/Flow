@@ -9,7 +9,7 @@ import { Sequelize, DataTypes, Model, InferAttributes, InferCreationAttributes, 
 
 // --- CONFIGURATION ---
 const PORT = 3006;
-const DB_DIALECT = (process.env.DB_DIALECT as 'mysql' | 'sqlite') || 'sqlite';
+const DB_DIALECT = (process.env.DB_DIALECT as 'mysql' | 'sqlite') || 'mysql';
 const DB_STORAGE = process.env.DB_STORAGE || 'database.sqlite';
 const DB_NAME = process.env.DB_NAME || 'flowstate';
 const DB_USER = process.env.DB_USER || 'root';
@@ -388,22 +388,15 @@ const start = async () => {
 
         // 2. Fallback or Default to SQLite
         if (!connected) {
-            console.log(`Using SQLite (${DB_STORAGE}) with WAL mode enabled...`);
+            console.log(`Using SQLite (${DB_STORAGE})...`);
             sequelize = new Sequelize({
                 dialect: 'sqlite',
                 storage: DB_STORAGE,
-                logging: false,
-                // OPTIMIZATION: Use WAL mode for better concurrency and performance
-                dialectOptions: {
-                    mode: 2 // SQLITE_OPEN_READWRITE
-                }
+                logging: false
             });
             await sequelize.authenticate();
-            // Enable Write-Ahead Logging for performance and robustness
-            await sequelize.query("PRAGMA journal_mode=WAL;");
-            await sequelize.query("PRAGMA synchronous=NORMAL;");
             
-            console.log('✅ Connected to SQLite (WAL Mode)');
+            console.log('✅ Connected to SQLite');
         }
 
         // 3. Init Models & Sync
