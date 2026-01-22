@@ -1,7 +1,8 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { CATEGORY_COLORS } from '../constants';
 import { TimeBlock, CategoryType, Category } from '../types';
-import { X, Brain, Coffee, Briefcase, Trash2, Edit2, Plus, ChevronDown, Check, Folder, GripHorizontal } from 'lucide-react';
+import { X, Brain, Coffee, Briefcase, Trash2, Edit2, Plus, ChevronDown, Check, Folder, GripHorizontal, Clock, AlertCircle } from 'lucide-react';
 
 interface VerticalTimelineProps {
   plannedBlocks: TimeBlock[];
@@ -386,6 +387,23 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
     setBlockTitle(e.target.value);
   };
 
+  const handleDraftTimeChange = (type: 'start' | 'end', value: string) => {
+    if (!draftBlock) return;
+    
+    const newDraft = { ...draftBlock, [type]: value };
+    
+    // Recalculate duration
+    const [h1, m1] = newDraft.start.split(':').map(Number);
+    const [h2, m2] = newDraft.end.split(':').map(Number);
+    
+    const startMins = h1 * 60 + m1;
+    const endMins = h2 * 60 + m2;
+    
+    newDraft.duration = endMins - startMins;
+    
+    setDraftBlock(newDraft);
+  };
+
   // Toggle handlers
   const switchToCategory = () => {
     setIsBreakMode(false);
@@ -406,6 +424,9 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
 
     // Require category for non-break items
     if (!isBreakMode && !selectedCategoryId) return;
+
+    // Validate duration
+    if (draftBlock.duration <= 0) return;
 
     let finalCategoryId = selectedCategoryId;
     let blockType: CategoryType = 'focus';
@@ -663,114 +684,151 @@ export const VerticalTimeline: React.FC<VerticalTimelineProps> = ({
 
             {renderCreationGhost()}
 
-            {/* CREATE/EDIT POPOVER */}
+            {/* CREATE/EDIT MODAL (FIXED CENTER) */}
             {isPopoverOpen && (
-                <div 
-                    className="create-popover absolute z-50 w-80 bg-[#1a1d24]/95 backdrop-blur-md border border-[#2a2d36] rounded-xl shadow-2xl p-4 animate-in fade-in zoom-in-95 duration-200"
-                    style={{ top: `${popoverPosition.top + 10}px`, left: '100px', right: '16px' }}
-                    onClick={(e) => e.stopPropagation()} 
-                >
-                    <div className="flex justify-between items-center mb-3">
-                        <span className="text-xs font-mono text-accent-focus">
-                            {draftBlock?.start} - {draftBlock?.end}
-                        </span>
-                        <button onClick={() => setIsPopoverOpen(false)} className="text-gray-500 hover:text-white">
-                            <X size={14} />
-                        </button>
-                    </div>
-
-                    <div className="space-y-4">
-                        {/* Title Input */}
-                        <div>
-                            <input
-                                autoFocus
-                                type="text"
-                                placeholder={isBreakMode ? "Break details..." : "What are you planning?"}
-                                className="w-full bg-transparent border-b border-gray-700 pb-2 text-sm text-white placeholder-gray-600 outline-none focus:border-accent-focus transition-colors"
-                                value={blockTitle}
-                                onChange={handleTitleChange}
-                                onKeyDown={(e) => e.key === 'Enter' && saveBlock()}
-                            />
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div 
+                        className="create-popover w-full max-w-sm bg-[#1a1d24] border border-[#2a2d36] rounded-xl shadow-2xl p-6 animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()} 
+                    >
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-lg font-bold text-white">
+                                {editingBlockId ? 'Edit Time Block' : 'New Time Block'}
+                            </h3>
+                            <button onClick={() => setIsPopoverOpen(false)} className="text-gray-500 hover:text-white transition-colors">
+                                <X size={20} />
+                            </button>
                         </div>
 
-                        {/* Category Select */}
-                        <div className="relative">
-                            <div className="flex items-center gap-2 mb-1.5">
-                                 <button
-                                    onClick={switchToCategory}
-                                    className={`text-[10px] uppercase font-bold tracking-wider transition-colors ${!isBreakMode ? 'text-accent-focus' : 'text-gray-600 hover:text-gray-400'}`}
-                                 >
-                                    Category
-                                 </button>
-                                 <span className="text-gray-700 text-[10px] font-bold">/</span>
-                                 <button
-                                    onClick={switchToBreak}
-                                    className={`text-[10px] uppercase font-bold tracking-wider transition-colors ${isBreakMode ? 'text-accent-break' : 'text-gray-600 hover:text-gray-400'}`}
-                                 >
-                                    Break
-                                 </button>
+                        <div className="space-y-5">
+                            {/* Time Range Inputs */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1.5 tracking-wider">Start Time</label>
+                                    <div className="relative">
+                                        <input
+                                            type="time"
+                                            value={draftBlock?.start || ''}
+                                            onChange={(e) => handleDraftTimeChange('start', e.target.value)}
+                                            className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-lg pl-3 pr-2 py-2 text-white text-sm focus:border-accent-focus outline-none transition-colors"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1.5 tracking-wider">End Time</label>
+                                    <div className="relative">
+                                        <input
+                                            type="time"
+                                            value={draftBlock?.end || ''}
+                                            onChange={(e) => handleDraftTimeChange('end', e.target.value)}
+                                            className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-lg pl-3 pr-2 py-2 text-white text-sm focus:border-accent-focus outline-none transition-colors"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                             
-                            {!isBreakMode ? (
-                                <>
-                                    <button 
-                                        onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                                        className={`w-full flex items-center justify-between p-2 rounded-lg border text-xs transition-all ${selectedCategory ? 'bg-[#2a2d36] border-[#3f434e] text-white' : 'bg-[#15171e] border-[#2a2d36] text-gray-400 hover:border-gray-500'}`}
-                                    >
-                                        <div className="flex items-center gap-2 truncate">
-                                            {selectedCategory ? (
-                                                <>
-                                                    <div className={`w-2 h-2 rounded-full ${CATEGORY_COLORS[selectedCategory.type]}`} />
-                                                    <span>{selectedCategory.name}</span>
-                                                </>
-                                            ) : (
-                                                <span className="italic">Select a category...</span>
-                                            )}
-                                        </div>
-                                        <ChevronDown size={14} className={`transition-transform duration-200 ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
-                                    </button>
-
-                                    {isCategoryDropdownOpen && (
-                                        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-lg shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto custom-scrollbar">
-                                            {workCategories.length > 0 ? (
-                                                workCategories.map((cat) => (
-                                                    <button
-                                                        key={cat.id}
-                                                        onClick={() => {
-                                                            setSelectedCategoryId(cat.id);
-                                                            setIsCategoryDropdownOpen(false);
-                                                        }}
-                                                        className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-[#2a2d36] hover:text-white flex items-center gap-2 border-b border-[#2a2d36] last:border-0"
-                                                    >
-                                                        <div className={`w-2 h-2 rounded-full shrink-0 ${CATEGORY_COLORS[cat.type]}`} />
-                                                        <span className="truncate">{cat.name}</span>
-                                                        {selectedCategoryId === cat.id && <Check size={12} className="ml-auto text-accent-focus" />}
-                                                    </button>
-                                                ))
-                                            ) : (
-                                                <div className="p-3 text-center text-xs text-gray-500">
-                                                    No categories found.
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <div className="w-full p-2 rounded-lg border border-[#2a2d36] bg-[#2a2d36] text-white text-xs flex items-center gap-2 cursor-default select-none">
-                                    <div className={`w-2 h-2 rounded-full ${CATEGORY_COLORS['break']}`} />
-                                    <span className="font-medium">Break</span>
+                            {/* Validation Error */}
+                            {draftBlock && draftBlock.duration <= 0 && (
+                                <div className="text-xs text-red-400 flex items-center gap-1.5 bg-red-500/10 p-2 rounded">
+                                    <AlertCircle size={14} /> End time must be after start time
                                 </div>
                             )}
-                        </div>
 
-                        {/* Action Button */}
-                        <button 
-                            onClick={saveBlock}
-                            disabled={!blockTitle.trim() || (!isBreakMode && !selectedCategoryId)}
-                            className="w-full py-2 bg-white text-black text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {editingBlockId ? 'Update Plan' : 'Save Plan'}
-                        </button>
+                            {/* Title Input */}
+                            <div>
+                                <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1.5 tracking-wider">Activity Name</label>
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    placeholder={isBreakMode ? "Break details..." : "What are you planning?"}
+                                    className="w-full bg-[#0f1117] border border-[#2a2d36] rounded-lg px-3 py-2.5 text-white placeholder-gray-600 outline-none focus:border-accent-focus transition-colors text-sm"
+                                    value={blockTitle}
+                                    onChange={handleTitleChange}
+                                    onKeyDown={(e) => e.key === 'Enter' && saveBlock()}
+                                />
+                            </div>
+
+                            {/* Category Select */}
+                            <div>
+                                <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1.5 tracking-wider">Type</label>
+                                <div className="relative">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <button
+                                            onClick={switchToCategory}
+                                            className={`text-[10px] uppercase font-bold tracking-wider transition-colors px-2 py-1 rounded ${!isBreakMode ? 'bg-accent-focus/10 text-accent-focus ring-1 ring-accent-focus/50' : 'text-gray-600 hover:text-gray-400'}`}
+                                        >
+                                            Work
+                                        </button>
+                                        <button
+                                            onClick={switchToBreak}
+                                            className={`text-[10px] uppercase font-bold tracking-wider transition-colors px-2 py-1 rounded ${isBreakMode ? 'bg-accent-break/10 text-accent-break ring-1 ring-accent-break/50' : 'text-gray-600 hover:text-gray-400'}`}
+                                        >
+                                            Break
+                                        </button>
+                                    </div>
+                                    
+                                    {!isBreakMode ? (
+                                        <>
+                                            <button 
+                                                onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                                                className={`w-full flex items-center justify-between p-2.5 rounded-lg border text-sm transition-all ${selectedCategory ? 'bg-[#2a2d36] border-[#3f434e] text-white' : 'bg-[#15171e] border-[#2a2d36] text-gray-400 hover:border-gray-500'}`}
+                                            >
+                                                <div className="flex items-center gap-2 truncate">
+                                                    {selectedCategory ? (
+                                                        <>
+                                                            <div className={`w-2 h-2 rounded-full ${CATEGORY_COLORS[selectedCategory.type]}`} />
+                                                            <span>{selectedCategory.name}</span>
+                                                        </>
+                                                    ) : (
+                                                        <span className="italic">Select a category...</span>
+                                                    )}
+                                                </div>
+                                                <ChevronDown size={14} className={`transition-transform duration-200 ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+                                            </button>
+
+                                            {isCategoryDropdownOpen && (
+                                                <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-lg shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto custom-scrollbar">
+                                                    {workCategories.length > 0 ? (
+                                                        workCategories.map((cat) => (
+                                                            <button
+                                                                key={cat.id}
+                                                                onClick={() => {
+                                                                    setSelectedCategoryId(cat.id);
+                                                                    setIsCategoryDropdownOpen(false);
+                                                                }}
+                                                                className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-[#2a2d36] hover:text-white flex items-center gap-2 border-b border-[#2a2d36] last:border-0"
+                                                            >
+                                                                <div className={`w-2 h-2 rounded-full shrink-0 ${CATEGORY_COLORS[cat.type]}`} />
+                                                                <span className="truncate">{cat.name}</span>
+                                                                {selectedCategoryId === cat.id && <Check size={14} className="ml-auto text-accent-focus" />}
+                                                            </button>
+                                                        ))
+                                                    ) : (
+                                                        <div className="p-3 text-center text-xs text-gray-500">
+                                                            No categories found.
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="w-full p-2.5 rounded-lg border border-[#2a2d36] bg-[#2a2d36] text-white text-sm flex items-center gap-2 cursor-default select-none opacity-80">
+                                            <Coffee size={14} className="text-accent-break" />
+                                            <span className="font-medium">Break Time</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Action Button */}
+                            <button 
+                                onClick={saveBlock}
+                                disabled={!blockTitle.trim() || (!isBreakMode && !selectedCategoryId) || (draftBlock?.duration || 0) <= 0}
+                                className="w-full py-3 bg-white text-black text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2 shadow-lg"
+                            >
+                                {editingBlockId ? 'Update Plan' : 'Save Plan'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
