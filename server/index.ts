@@ -366,7 +366,7 @@ const start = async () => {
     try {
         let connected = false;
 
-        // 1. Try MySQL
+        // 1. Attempt MySQL only if specified explicitly
         if (DB_DIALECT === 'mysql') {
             console.log(`Connecting to MySQL at ${DB_HOST}...`);
             try {
@@ -382,23 +382,31 @@ const start = async () => {
                 connected = true;
                 console.log('✅ Connected to MySQL');
             } catch (err: any) {
-                console.warn(`⚠️ MySQL Failed: ${err.message}`);
+                console.warn(`⚠️ MySQL Failed: ${err.message}. Falling back to SQLite if possible...`);
             }
         }
 
-        // 2. Fallback to SQLite
+        // 2. Fallback or Default to SQLite
         if (!connected) {
-            console.log(`Using SQLite fallback (${DB_STORAGE})...`);
+            console.log(`Using SQLite (${DB_STORAGE}) with WAL mode enabled...`);
             sequelize = new Sequelize({
                 dialect: 'sqlite',
                 storage: DB_STORAGE,
-                logging: false
+                logging: false,
+                // OPTIMIZATION: Use WAL mode for better concurrency and performance
+                dialectOptions: {
+                    mode: 2 // SQLITE_OPEN_READWRITE
+                }
             });
             await sequelize.authenticate();
-            console.log('✅ Connected to SQLite');
+            // Enable Write-Ahead Logging for performance and robustness
+            await sequelize.query("PRAGMA journal_mode=WAL;");
+            await sequelize.query("PRAGMA synchronous=NORMAL;");
+            
+            console.log('✅ Connected to SQLite (WAL Mode)');
         }
 
-        // 3. Init
+        // 3. Init Models & Sync
         initModels(sequelize);
         
         try {
@@ -408,8 +416,6 @@ const start = async () => {
             await sequelize.sync();
         }
 
-        // We don't need a global seeder anymore since data is per-user
-        
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Server running on port ${PORT}`);
         });
