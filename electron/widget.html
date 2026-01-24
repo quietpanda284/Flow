@@ -19,15 +19,16 @@
             display: flex;
             flex-direction: column;
             justify-content: flex-end; 
+            align-items: flex-end; /* Align right */
         }
 
         .container {
             background: #0f1117;
             border-radius: 8px;
             border: 1px solid #2a2d36;
-            display: flex;
+            display: inline-flex; /* Use inline flex to fit content */
             align-items: center;
-            width: 100%;
+            min-width: 320px;
             padding: 0 12px;
             height: 50px; 
             flex-shrink: 0;
@@ -89,9 +90,7 @@
             font-weight: 600;
             color: #4D96FF; 
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100px;
+            /* Remove max-width and ellipsis to allow expansion */
         }
         .metric-label {
             font-size: 9px;
@@ -296,7 +295,7 @@
         </ul>
     </div>
 
-    <div class="container">
+    <div class="container" id="widgetContainer">
         <!-- Timer -->
         <div class="primary-display" id="mainDisplay">
             <div class="ring-container" id="ringContainer">
@@ -316,15 +315,15 @@
             <span class="time-text" id="timeText">12:00</span>
         </div>
 
-        <!-- Metrics -->
+        <!-- Metrics (Swapped: Status first, Category second) -->
         <div class="metrics">
-            <div class="metric-item">
-                <span class="metric-value" id="currentCategory">None</span>
-                <span class="metric-label">Category</span>
-            </div>
             <div class="metric-item">
                 <span class="metric-value" id="statusText">IDLE</span>
                 <span class="metric-label">Status</span>
+            </div>
+            <div class="metric-item">
+                <span class="metric-value" id="currentCategory">None</span>
+                <span class="metric-label">Category</span>
             </div>
         </div>
 
@@ -357,6 +356,7 @@
         let currentCategories = [];
         let activeCategoryId = '';
         let lastFocusEndTimestamp = null;
+        let lastSentWidth = 0;
 
         window.electron.receive('timer-update', (data) => {
             const { 
@@ -402,7 +402,23 @@
                 activeCategoryId = newActiveId;
                 renderCategoryList();
             }
+
+            // 4. Update Window Size based on content
+            requestAnimationFrame(updateWindowSize);
         });
+
+        function updateWindowSize() {
+            const container = document.getElementById('widgetContainer');
+            // Add a small buffer for shadow/margin safety if needed, or use exact
+            const width = container.offsetWidth; 
+            
+            // Only update if width changed significantly to avoid jitter, 
+            // but for exact text fitting, we update if diff > 1px
+            if (Math.abs(width - lastSentWidth) > 1) {
+                lastSentWidth = width;
+                window.electron.send('widget-resize', { width: width });
+            }
+        }
 
         function updateIdleDisplay() {
             const timeTextEl = document.getElementById('timeText');
@@ -417,8 +433,7 @@
                 timeTextEl.innerText = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
                 statusEl.innerText = 'SINCE FOCUS';
             } else {
-                const now = new Date();
-                timeTextEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                timeTextEl.innerText = "00:00:00";
                 statusEl.innerText = 'IDLE';
             }
         }

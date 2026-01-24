@@ -402,16 +402,36 @@ ipcMain.on('toggle-widget', () => {
     }
 });
 
-ipcMain.on('widget-resize', (event, { height }) => {
+ipcMain.on('widget-resize', (event, { width, height }) => {
     if (!widgetWindow || widgetWindow.isDestroyed()) return;
     const bounds = widgetWindow.getBounds();
-    const bottomY = bounds.y + bounds.height;
-    const newY = bottomY - height;
+    const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize;
+
+    let newWidth = bounds.width;
+    let newHeight = bounds.height;
+    let newX = bounds.x;
+    let newY = bounds.y;
+
+    // Handle Width Resize
+    if (width && width !== bounds.width) {
+        newWidth = width;
+        // Keep right alignment
+        newX = screenWidth - newWidth - 24;
+    }
+
+    // Handle Height Resize
+    if (height && height !== bounds.height) {
+        newHeight = height;
+        // Keep bottom alignment
+        const bottomY = bounds.y + bounds.height;
+        newY = bottomY - newHeight;
+    }
+
     widgetWindow.setBounds({
-        x: bounds.x,
+        x: newX,
         y: newY,
-        width: bounds.width,
-        height: height
+        width: newWidth,
+        height: newHeight
     });
 });
 
