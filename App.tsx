@@ -13,6 +13,7 @@ import { SettingsPage } from './components/SettingsPage';
 import { AccountPage } from './components/AccountPage';
 import { ConnectionWarning } from './components/ConnectionWarning';
 import { LoginPage } from './components/LoginPage';
+import { WindowControls } from './components/WindowControls';
 import { TimeBlock, Category } from './types';
 import { getCategories, getActualBlocks, getPlannedBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock, getFocusHistory } from './services/api';
 import { getPeakProductiveHour, getTotalProductiveMinutes, formatDuration, calculateScheduleMetrics } from './utils/analytics';
@@ -24,7 +25,6 @@ export default function App() {
   const { user, isLoading: isAuthLoading, logout } = useAuth();
   const [currentPage, setCurrentPage] = useState('Home');
   
-  // Developer Mode State - Persisted in LocalStorage
   const [isDevMode, setIsDevMode] = useState(() => {
     try {
       return localStorage.getItem('flowstate_dev_mode') === 'true';
@@ -33,12 +33,10 @@ export default function App() {
     }
   });
 
-  // Save to LocalStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('flowstate_dev_mode', String(isDevMode));
   }, [isDevMode]);
 
-  // Date & View State
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
 
@@ -48,14 +46,12 @@ export default function App() {
   const [history, setHistory] = useState<{ date: string, totalMinutes: number }[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(true);
   
-  // Connection State
   const [connectionError, setConnectionError] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
 
-  // Store Scroll Position for the Planning Page
   const planScrollRef = useRef<number | null>(null);
+  const lastFetchIdRef = useRef(0);
 
-  // Helper to convert date to YYYY-MM-DD local
   const toDateStr = (d: Date) => {
     const offset = d.getTimezoneOffset();
     const local = new Date(d.getTime() - (offset * 60 * 1000));
@@ -63,26 +59,18 @@ export default function App() {
   };
 
   const currentDateStr = toDateStr(currentDate);
-
-  // Date Header formatting
   const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' });
   const fullDate = currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
-  // Reset navigation to Home when user logs out
   useEffect(() => {
     if (!user) {
       setCurrentPage('Home');
     }
   }, [user]);
 
-  // Track the latest fetch request ID to ignore stale responses/errors
-  const lastFetchIdRef = useRef(0);
-
-  // Fetch logic extracted to function for reuse
   const fetchData = async (background = false) => {
-    if (!user) return; // Don't fetch if not logged in
+    if (!user) return; 
     
-    // GUEST MODE: Skip backend, use defaults/local only
     if (user.isGuest) {
         if (!background) {
             setCategories(MASTER_CATEGORIES);
@@ -96,7 +84,6 @@ export default function App() {
     if (!background) setIsDataLoading(true);
     setConnectionError(false);
     
-    // Calculate Date Range
     let startStr = currentDateStr;
     let endStr = undefined;
 
@@ -105,10 +92,8 @@ export default function App() {
         const diff = currentDate.getDate() - day + (day === 0 ? -6 : 1);
         const monday = new Date(currentDate);
         monday.setDate(diff);
-        
         const sunday = new Date(monday);
         sunday.setDate(monday.getDate() + 6);
-        
         startStr = toDateStr(monday);
         endStr = toDateStr(sunday);
     }
@@ -121,7 +106,6 @@ export default function App() {
             getFocusHistory()
         ]);
 
-        // If this is not the latest request, ignore the results
         if (fetchId !== lastFetchIdRef.current) return;
 
         setCategories(cats);
@@ -130,28 +114,23 @@ export default function App() {
         setHistory(hist);
         setShowWarning(false);
     } catch (error) {
-        // If this is not the latest request, ignore the error (prevent flashing)
         if (fetchId !== lastFetchIdRef.current) return;
-
         console.error("Failed to fetch data:", error);
         setConnectionError(true);
         if (!background) setShowWarning(true);
     } finally {
-        // Only update loading state if this is the latest request
         if (fetchId === lastFetchIdRef.current) {
             setIsDataLoading(false);
         }
     }
   };
 
-  // Initial Fetch & Update when date/view changes
   useEffect(() => {
     if (user) {
         fetchData(); 
     }
   }, [currentPage, user, currentDateStr, viewMode]); 
   
-  // Polling
   useEffect(() => {
       if (!user) return;
       const intervalId = setInterval(() => {
@@ -160,16 +139,8 @@ export default function App() {
       return () => clearInterval(intervalId);
   }, [user, currentDateStr, viewMode]);
 
-  // Calculate advanced schedule metrics
-  const { 
-    missedMinutes, 
-    unplannedMinutes, 
-    adherenceRate,
-    totalPlannedMinutes, 
-    totalActualMinutes 
-  } = useMemo(() => calculateScheduleMetrics(plannedBlocks, actualBlocks), [plannedBlocks, actualBlocks]);
+  const { missedMinutes, unplannedMinutes, adherenceRate, totalPlannedMinutes, totalActualMinutes } = useMemo(() => calculateScheduleMetrics(plannedBlocks, actualBlocks), [plannedBlocks, actualBlocks]);
   
-  // Dynamic Trends Data
   const currentProductiveMinutes = getTotalProductiveMinutes(actualBlocks);
   const peakProductiveHour = getPeakProductiveHour(actualBlocks);
 
@@ -177,14 +148,12 @@ export default function App() {
     const blockWithDate = { ...newBlock, date: currentDateStr };
     const tempBlock = { ...blockWithDate };
 
-    // GUEST MODE: Local only
     if (user?.isGuest) {
         setPlannedBlocks((prev) => [...prev, { ...tempBlock, id: `guest-${Date.now()}` }]);
         return;
     }
 
     setPlannedBlocks((prev) => [...prev, tempBlock]);
-    
     try {
         const savedBlock = await addTimeBlock(blockWithDate, true);
         setPlannedBlocks((prev) => prev.map(b => b.id === tempBlock.id ? savedBlock : b));
@@ -199,8 +168,6 @@ export default function App() {
   const handleDeleteBlock = async (blockId: string) => {
     const prevBlocks = [...plannedBlocks];
     setPlannedBlocks((prev) => prev.filter((b) => b.id !== blockId));
-    
-    // GUEST MODE: Local only
     if (user?.isGuest) return;
 
     try {
@@ -216,8 +183,6 @@ export default function App() {
   const handleUpdateBlock = async (updatedBlock: TimeBlock) => {
     const prevBlocks = [...plannedBlocks];
     setPlannedBlocks((prev) => prev.map((b) => (b.id === updatedBlock.id ? updatedBlock : b)));
-    
-    // GUEST MODE: Local only
     if (user?.isGuest) return;
 
     try {
@@ -230,13 +195,9 @@ export default function App() {
     }
   };
 
-  // Called when Focus Timer finishes or saves
   const handleTimerComplete = (newBlock?: TimeBlock) => {
-      // GUEST MODE: Manually update local state since backend is disabled
       if (user?.isGuest && newBlock) {
           setActualBlocks(prev => [...prev, newBlock]);
-          
-          // Update History for Heatmap locally
           setHistory(prev => {
               const dateStr = newBlock.date!;
               const minutes = newBlock.durationMinutes;
@@ -250,15 +211,13 @@ export default function App() {
               }
           });
       } else {
-         fetchData(); 
+         fetchData(true); 
       }
   };
 
-  // --- AUTH GUARD RENDER ---
-  
   if (isAuthLoading) {
       return (
-          <div className="min-h-screen bg-[#0f1117] flex items-center justify-center">
+          <div className="min-h-screen bg-[#0f1117] flex items-center justify-center app-drag-region">
               <Loader2 className="animate-spin text-accent-focus" size={32} />
           </div>
       );
@@ -270,12 +229,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background text-gray-200 font-sans selection:bg-accent-focus selection:text-black">
+      {/* Draggable Title Bar Area */}
+      <div className="fixed top-0 left-0 right-0 h-8 z-50 app-drag-region" />
+      
+      {/* Window Controls */}
+      <WindowControls />
+
       <Sidebar activePage={currentPage} onNavigate={setCurrentPage} isDevMode={isDevMode} />
       
-      {/* Main Content Area */}
-      <main className="pl-20 pr-8 py-8 min-h-screen max-w-[1600px] mx-auto relative">
+      <main className="pl-20 pr-8 py-8 min-h-screen max-w-[1600px] mx-auto relative pt-16">
         
-        {/* Header */}
         <header className="flex justify-between items-center mb-8">
             <div>
                 <h1 className="text-3xl font-display font-bold text-white tracking-wide">
@@ -308,10 +271,8 @@ export default function App() {
             </div>
         </header>
 
-        {/* Home View (Dual Layer Timeline - Read Only) */}
         {currentPage === 'Home' && (
             <>
-                {/* Metrics are only relevant for SINGLE DAY view usually, hide in weekly for simplicity or aggregate later */}
                 {viewMode === 'day' && (
                     <MetricsBar 
                         plannedMinutes={totalPlannedMinutes} 
@@ -321,15 +282,12 @@ export default function App() {
                         adherenceRate={adherenceRate}
                     />
                 )}
-                
-                {/* Date Navigation for Home View */}
                 <DateController 
                     currentDate={currentDate} 
                     onDateChange={setCurrentDate} 
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
                 />
-
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-2 h-[600px]">
                         {viewMode === 'week' ? (
@@ -349,7 +307,6 @@ export default function App() {
                             />
                         )}
                     </div>
-                    
                     <div className="lg:col-span-1 h-[600px] flex flex-col">
                         <CategoryBreakdown timeBlocks={actualBlocks} categories={categories} />
                     </div>
@@ -359,14 +316,12 @@ export default function App() {
 
         {currentPage === 'Plan' && (
              <div className="flex flex-col h-[700px]">
-                 {/* Also add Date Controller to Plan page so they can plan future dates */}
                  <DateController 
                     currentDate={currentDate} 
                     onDateChange={setCurrentDate} 
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
                 />
-                
                 {viewMode === 'week' ? (
                     <div className="flex-1">
                         <WeeklyView 

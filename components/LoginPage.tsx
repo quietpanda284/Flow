@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { registerUser } from '../services/api';
 import { Lock, ArrowRight, Loader2, AlertCircle, UserPlus, User } from 'lucide-react';
+import { WindowControls } from './WindowControls';
 
 export const LoginPage: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -12,18 +13,24 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState('');
 
   return (
-    <LoginContainer 
-       isRegistering={isRegistering} 
-       setIsRegistering={setIsRegistering} 
-       username={username}
-       setUsername={setUsername}
-       password={password}
-       setPassword={setPassword}
-       isSubmitting={isSubmitting}
-       setIsSubmitting={setIsSubmitting}
-       error={error}
-       setError={setError}
-    />
+    <>
+        {/* Draggable Title Bar Area */}
+        <div className="fixed top-0 left-0 right-0 h-8 z-50 app-drag-region" />
+        <WindowControls />
+
+        <LoginContainer 
+           isRegistering={isRegistering} 
+           setIsRegistering={setIsRegistering} 
+           username={username}
+           setUsername={setUsername}
+           password={password}
+           setPassword={setPassword}
+           isSubmitting={isSubmitting}
+           setIsSubmitting={setIsSubmitting}
+           error={error}
+           setError={setError}
+        />
+    </>
   );
 };
 

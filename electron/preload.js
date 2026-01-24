@@ -6,7 +6,7 @@ let nextId = 0;
 contextBridge.exposeInMainWorld('electron', {
   send: (channel, data) => {
     // Whitelist channels
-    let validChannels = ['timer-command', 'widget-command', 'toggle-widget', 'widget-resize'];
+    let validChannels = ['timer-command', 'widget-command', 'toggle-widget', 'widget-resize', 'window-control'];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }

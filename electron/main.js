@@ -90,7 +90,9 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 700,
     backgroundColor: '#0f1117',
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: 'hidden', // Hides title bar but keeps traffic lights on macOS (optional)
+    frame: false, // REMOVES Frame (Windows/Linux)
+    autoHideMenuBar: true, // REMOVES Menu Bar
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -441,6 +443,24 @@ ipcMain.on('widget-resize', (event, { width, height, align }) => {
         height: newHeight
     });
 });
+
+// --- NEW WINDOW CONTROLS ---
+ipcMain.on('window-control', (event, command) => {
+    if (!mainWindow) return;
+    switch (command) {
+        case 'minimize':
+            mainWindow.minimize();
+            break;
+        case 'maximize':
+            if (mainWindow.isMaximized()) mainWindow.unmaximize();
+            else mainWindow.maximize();
+            break;
+        case 'close':
+            mainWindow.close();
+            break;
+    }
+});
+
 
 const registerGlobalShortcuts = () => {
   const ret = globalShortcut.register('CommandOrControl+K', () => {

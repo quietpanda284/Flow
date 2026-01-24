@@ -14,6 +14,7 @@ body {
 /* Ensure inputs, buttons, and other form elements inherit the correct font family */
 input, button, select, textarea {
   font-family: inherit;
+  -webkit-app-region: no-drag; /* Ensure inputs are clickable */
 }
 
 /* Custom scrollbar for dark theme */
@@ -39,4 +40,13 @@ input, button, select, textarea {
 .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+}
+
+/* Window Drag Regions */
+.app-drag-region {
+    -webkit-app-region: drag;
+}
+
+.drag-none {
+    -webkit-app-region: no-drag;
 }
