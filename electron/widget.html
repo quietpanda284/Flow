@@ -255,8 +255,8 @@
                 <span class="metric-label">Category</span>
             </div>
             <div class="metric-item">
-                <span class="metric-value" id="totalFocusTime">0m</span>
-                <span class="metric-label">Total Focus</span>
+                <span class="metric-value" id="statusText">IDLE</span>
+                <span class="metric-label">Status</span>
             </div>
         </div>
 
@@ -285,52 +285,51 @@
             return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         }
 
-        function formatDuration(minutes) {
-             const h = Math.floor(minutes / 60);
-             const m = minutes % 60;
-             if (h > 0) return `${h}h ${m}m`;
-             return `${m}m`;
-        }
-
-        // Logic
         let isMenuOpen = false;
         let currentCategories = [];
         let activeCategoryId = '';
 
-        window.electron.receive('widget-update', (data) => {
+        // NEW: Listen to 'timer-update' from Main Process
+        window.electron.receive('timer-update', (data) => {
             const { 
-                timerState, 
-                timeLeft, 
+                status, 
+                secondsRemaining, 
                 totalDuration, 
-                totalProductiveMinutes,
-                activeCategoryName,
-                activeCategoryId: newActiveId,
-                availableCategories = [] // Default to empty array
+                activeCategory, 
+                availableCategories = [] 
             } = data;
 
             const timeTextEl = document.getElementById('timeText');
             const ringContainer = document.getElementById('ringContainer');
             const mainDisplay = document.getElementById('mainDisplay');
+            const statusEl = document.getElementById('statusText');
 
-            // 1. Timer
-            if (timerState === 'RUNNING' || timerState === 'PAUSED') {
+            // 1. Update Timer Display
+            if (status === 'RUNNING' || status === 'PAUSED') {
                 mainDisplay.classList.add('is-focus');
-                timeTextEl.innerText = formatTime(timeLeft);
+                timeTextEl.innerText = formatTime(secondsRemaining);
                 ringContainer.style.display = 'flex';
-                const percent = ((totalDuration * 60 - timeLeft) / (totalDuration * 60)) * 100;
+                
+                // Calculate percentage
+                const percent = ((totalDuration - secondsRemaining) / totalDuration) * 100;
                 setProgress(100 - percent);
+                
+                statusEl.innerText = status === 'PAUSED' ? 'PAUSED' : 'FOCUSING';
             } else {
+                // Idle State - Show Clock
                 mainDisplay.classList.remove('is-focus');
                 const now = new Date();
                 timeTextEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
                 ringContainer.style.display = 'none';
+                statusEl.innerText = 'IDLE';
             }
 
-            // 2. Metrics
-            document.getElementById('totalFocusTime').innerText = formatDuration(totalProductiveMinutes);
-            document.getElementById('currentCategory').innerText = activeCategoryName || 'None';
+            // 2. Update Category Label
+            const catName = activeCategory ? activeCategory.name : 'None';
+            document.getElementById('currentCategory').innerText = catName;
 
-            // 3. Update Category List in Menu if changed
+            // 3. Update Category Menu if list changed
+            const newActiveId = activeCategory ? activeCategory.id : '';
             if (JSON.stringify(availableCategories) !== JSON.stringify(currentCategories) || newActiveId !== activeCategoryId) {
                 currentCategories = availableCategories;
                 activeCategoryId = newActiveId;
@@ -353,7 +352,6 @@
                 const btn = document.createElement('button');
                 btn.className = `category-item ${cat.id === activeCategoryId ? 'active' : ''}`;
                 
-                // SVG Check Icon
                 const svg = `<svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
                 
                 btn.innerHTML = `${svg} ${cat.name}`;
@@ -396,6 +394,7 @@
             }
         }
         
+        // Fallback clock interval for Idle state
         setInterval(() => {
             if (!document.getElementById('mainDisplay').classList.contains('is-focus')) {
                  const now = new Date();

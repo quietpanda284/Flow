@@ -419,7 +419,12 @@ export default function App() {
         <div className={`transition-opacity duration-300 ${currentPage === 'Focus' ? 'block opacity-100' : 'hidden opacity-0 h-0 overflow-hidden'}`}>
              <div className="flex items-center justify-center min-h-[600px] h-[calc(100vh-160px)]">
                 <div className="w-full max-w-3xl h-full">
-                    <FocusTimer onTimerComplete={handleTimerComplete} isDevMode={isDevMode} />
+                    <FocusTimer 
+                        onTimerComplete={handleTimerComplete} 
+                        isDevMode={isDevMode} 
+                        categories={categories} 
+                        onCategoryChange={() => fetchData(true)}
+                    />
                 </div>
             </div>
         </div>

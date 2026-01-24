@@ -1,9 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2, Zap, Save, RefreshCw, Maximize2, Minimize2 } from 'lucide-react';
+import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Save, RefreshCw, Maximize2, Minimize2, Monitor, Loader2, Zap } from 'lucide-react';
 import { TimerState, CategoryType, Category, TimeBlock } from '../types';
-import { getCategories, addCategory, deleteCategory, addTimeBlock } from '../services/api';
-import { MASTER_CATEGORIES } from '../constants';
+import { addCategory, deleteCategory, addTimeBlock } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 type TimerVariant = 'FOCUS_25' | 'FOCUS_50' | 'BREAK_5' | 'BREAK_10';
@@ -15,12 +13,10 @@ const MODES: Record<TimerVariant, { label: string; minutes: number; color: strin
   BREAK_10: { label: 'Long Break', minutes: 10, color: 'text-accent-break', bg: 'bg-accent-break', icon: Battery },
 };
 
-// Polyfill for randomUUID in non-secure contexts (HTTP)
 const generateUUID = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
     }
-    // Fallback v4 UUID generator for insecure contexts
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
@@ -30,65 +26,57 @@ const generateUUID = () => {
 interface FocusTimerProps {
     onTimerComplete?: (block?: TimeBlock) => void;
     isDevMode?: boolean;
+    categories: Category[];
+    onCategoryChange?: () => void;
 }
 
-export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMode = false }) => {
+export const FocusTimer: React.FC<FocusTimerProps> = ({ 
+    onTimerComplete, 
+    isDevMode = false,
+    categories,
+    onCategoryChange
+}) => {
   const { user } = useAuth();
+  
+  // Local UI State (Data comes from Electron now)
   const [timerState, setTimerState] = useState<TimerState>(TimerState.IDLE);
   const [mode, setMode] = useState<TimerVariant>('FOCUS_25');
   const [timeLeft, setTimeLeft] = useState(MODES.FOCUS_25.minutes * 60);
-  
-  // Memory State: Remembers the last used duration for each type
-  const [lastFocusMode, setLastFocusMode] = useState<TimerVariant>('FOCUS_25');
-  const [lastBreakMode, setLastBreakMode] = useState<TimerVariant>('BREAK_5');
-
-  // Feedback State
   const [lastSavedMessage, setLastSavedMessage] = useState<string | null>(null);
-
-  // Category Management State
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  
+  // Category UI
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryTitle, setNewCategoryTitle] = useState('');
   const [newCategoryType, setNewCategoryType] = useState<CategoryType>('focus');
-  
-  // Fullscreen State
+
+  // View State
   const [isFullscreen, setIsFullscreen] = useState(false);
-  
-  const timerRef = useRef<number | null>(null);
   const fullScreenRef = useRef<HTMLDivElement>(null);
 
   const isFocus = mode.startsWith('FOCUS');
   const isTimerActive = timerState !== TimerState.IDLE;
+  
+  // Refs for current data snapshot (used in callbacks)
+  const stateRef = useRef({ categories, user, activeCategory });
 
-  // Initial Data Fetch
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      if (user?.isGuest) {
-          setCategories(MASTER_CATEGORIES);
-          setActiveCategory(MASTER_CATEGORIES[0]);
-          setIsLoading(false);
-          return;
-      }
-      const fetchedCats = await getCategories();
-      setCategories(fetchedCats);
-      if (fetchedCats.length > 0) setActiveCategory(fetchedCats[0]);
-      setIsLoading(false);
-    };
-    loadData();
-  }, [user]);
+    stateRef.current = { categories, user, activeCategory };
+  }, [categories, user, activeCategory]);
 
-  // Update Document Title
+  // Sync Categories with Electron Main Process
   useEffect(() => {
-    if (timerState === TimerState.RUNNING) {
-      document.title = `${formatTime(timeLeft)} - ${isFocus ? 'Focus' : 'Break'}`;
-    } else {
-      document.title = 'Flow';
+    if ((window as any).electron) {
+        (window as any).electron.send('timer-command', {
+            type: 'SYNC_CATEGORIES',
+            payload: {
+                categories: categories.map(c => ({ id: c.id, name: c.name, type: c.type })),
+                activeCategory: activeCategory
+            }
+        });
     }
-  }, [timeLeft, timerState, isFocus]);
+  }, [categories, activeCategory]);
 
   // Fullscreen Listener
   useEffect(() => {
@@ -111,16 +99,10 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     }
   };
 
-  // Helper to get formatted time string HH:MM (Local Time)
-  const getCurrentTimeStr = (date: Date) => {
-      return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-  };
-
-  // Helper to get Local Date String YYYY-MM-DD
-  const getLocalDateStr = (date: Date) => {
-      const offset = date.getTimezoneOffset();
-      const localDate = new Date(date.getTime() - (offset*60*1000));
-      return localDate.toISOString().split('T')[0];
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   const showFeedback = (msg: string) => {
@@ -128,417 +110,214 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       setTimeout(() => setLastSavedMessage(null), 3000);
   };
 
-  const saveSession = async (actualMinutes?: number) => {
+  // --- SAVE LOGIC ---
+  const saveSession = async (durationMinutes: number, completedMode: string) => {
+    const { user: currentUser, activeCategory: currentCat } = stateRef.current;
+    
     const now = new Date();
-    // Use Math.max to ensure even 59s rounds up to 1m if passed to this function
-    const rawMinutes = actualMinutes ?? MODES[mode].minutes;
-    const durationMinutes = Math.max(1, Math.round(rawMinutes));
+    const effectiveDuration = Math.max(1, Math.round(durationMinutes));
+    const startDate = new Date(now.getTime() - effectiveDuration * 60000);
     
-    // Safety check, though handleStop should catch this
-    if (durationMinutes < 1) return;
-
-    // Calculate start time based on duration
-    const startDate = new Date(now.getTime() - durationMinutes * 60000);
-    
-    const startTimeStr = getCurrentTimeStr(startDate);
-    const endTimeStr = getCurrentTimeStr(now);
-
-    // Determine category props
+    // Determine props
+    const isModeFocus = completedMode.startsWith('FOCUS');
     let categoryId = 'custom';
-    let type: CategoryType = isFocus ? 'focus' : 'break';
-    let title = MODES[mode].label;
+    let type: CategoryType = isModeFocus ? 'focus' : 'break';
+    let title = isModeFocus ? 'Focus Session' : 'Break';
 
-    if (isFocus && activeCategory) {
-        categoryId = activeCategory.id;
-        title = activeCategory.name;
-        type = activeCategory.type;
+    if (MODES[completedMode as TimerVariant]) {
+        title = MODES[completedMode as TimerVariant].label;
+    }
+
+    if (isModeFocus && currentCat) {
+        categoryId = currentCat.id;
+        title = currentCat.name;
+        type = currentCat.type;
     }
 
     const newBlock: TimeBlock = {
-        id: generateUUID(), // Temp ID, backend assigns real one
+        id: generateUUID(),
         title: title,
         app: 'Timer',
-        startTime: startTimeStr,
-        endTime: endTimeStr,
-        durationMinutes: durationMinutes,
+        startTime: `${startDate.getHours().toString().padStart(2,'0')}:${startDate.getMinutes().toString().padStart(2,'0')}`,
+        endTime: `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`,
+        durationMinutes: effectiveDuration,
         type: type,
         categoryId: categoryId,
-        isPlanned: false, // This is an actual record
-        date: getLocalDateStr(now) // Use LOCAL date to match dashboard
+        isPlanned: false, 
+        date: now.toISOString().split('T')[0]
     };
 
-    console.log(`[Timer] Saving block: ${durationMinutes}m on ${newBlock.date}`);
-
-    // GUEST MODE: Don't call API
-    if (user?.isGuest) {
-        showFeedback(`Saved ${durationMinutes}m (Guest)`);
+    if (currentUser?.isGuest) {
+        showFeedback(`Saved ${effectiveDuration}m (Guest)`);
         if (onTimerComplete) onTimerComplete(newBlock);
         return;
     }
 
     try {
         await addTimeBlock(newBlock, false);
-        showFeedback(`Saved ${durationMinutes}m session`);
-        if (onTimerComplete) onTimerComplete(); // Passing nothing triggers refetch
+        showFeedback(`Saved ${effectiveDuration}m session`);
+        if (onTimerComplete) onTimerComplete();
     } catch (error) {
         console.error("Failed to save timer session", error);
         showFeedback("Failed to save session");
     }
   };
 
-  const handleSimulateSession = async () => {
-    const now = new Date();
-    const durationMinutes = 25;
-    const startDate = new Date(now.getTime() - durationMinutes * 60000);
-    
-    // Use current settings or defaults
-    let categoryId = 'custom';
-    let type: CategoryType = 'focus';
-    let title = 'Simulated Focus';
+  // --- IPC LISTENERS ---
+  useEffect(() => {
+      if (!(window as any).electron) return;
 
-    if (activeCategory) {
-        categoryId = activeCategory.id;
-        title = activeCategory.name;
-        type = activeCategory.type;
-    }
+      // Listen for updates
+      const updateId = (window as any).electron.receive('timer-update', (data: any) => {
+          // Update Local State from Truth
+          setTimerState(data.status); // 'IDLE' | 'RUNNING' | 'PAUSED'
+          setTimeLeft(data.secondsRemaining);
+          
+          if (data.mode) setMode(data.mode);
+          
+          // Sync Active Category if changed externally
+          if (data.activeCategory) {
+              setActiveCategory(data.activeCategory);
+          }
+      });
 
-    const newBlock: TimeBlock = {
-        id: generateUUID(), 
-        title: title,
-        app: 'Dev Simulation',
-        startTime: getCurrentTimeStr(startDate),
-        endTime: getCurrentTimeStr(now),
-        durationMinutes: durationMinutes,
-        type: type,
-        categoryId: categoryId,
-        isPlanned: false, 
-        date: getLocalDateStr(now)
-    };
+      // Listen for completion (Trigger Save)
+      const completeId = (window as any).electron.receive('timer-complete', (data: any) => {
+          console.log("Timer complete received:", data);
+          saveSession(data.duration, data.mode);
+      });
 
-    if (user?.isGuest) {
-        showFeedback("Simulated 25m (Guest)");
-        if (onTimerComplete) onTimerComplete(newBlock);
-        return;
-    }
+      return () => {
+          if ((window as any).electron.removeListener) {
+            (window as any).electron.removeListener(updateId);
+            (window as any).electron.removeListener(completeId);
+          }
+      };
+  }, []);
 
-    try {
-        await addTimeBlock(newBlock, false);
-        showFeedback("Simulated 25m Saved");
-        if (onTimerComplete) onTimerComplete();
-    } catch (error) {
-        console.error("Failed to save simulated session", error);
-    }
+  // --- ACTIONS (Send Commands) ---
+
+  const sendCommand = (type: string, payload?: any) => {
+      if ((window as any).electron) {
+          (window as any).electron.send('timer-command', { type, payload });
+      }
   };
 
-  useEffect(() => {
-    if (timerState === TimerState.RUNNING) {
-      timerRef.current = window.setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) { // Hit 0
-            // Timer Complete Logic
-            clearInterval(timerRef.current!);
-            setTimerState(TimerState.IDLE);
-            saveSession(); // Save the block
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [timerState, mode, activeCategory]); 
-
-  // Switch between Tab Groups (Focus vs Break)
   const switchTab = (tab: 'FOCUS' | 'BREAK') => {
     if (isTimerActive) return;
-    
-    // Load preference from memory instead of hard defaults
-    const newMode: TimerVariant = tab === 'FOCUS' ? lastFocusMode : lastBreakMode;
-    
+    const newMode: TimerVariant = tab === 'FOCUS' ? 'FOCUS_25' : 'BREAK_5'; // Default switch
+    // Note: We don't set local state immediately, we wait for update, but we can optimistically update active tab UI logic
+    // Actually, strictly speaking, mode determines tab.
     setMode(newMode);
-    setTimerState(TimerState.IDLE);
     setTimeLeft(MODES[newMode].minutes * 60);
   };
 
-  // Toggle Duration within the current tab
   const toggleDuration = () => {
       if (isTimerActive) return;
       let newMode: TimerVariant = mode;
-      
-      switch (mode) {
-          case 'FOCUS_25': newMode = 'FOCUS_50'; break;
-          case 'FOCUS_50': newMode = 'FOCUS_25'; break;
-          case 'BREAK_5': newMode = 'BREAK_10'; break;
-          case 'BREAK_10': newMode = 'BREAK_5'; break;
-      }
-      
+      if (mode === 'FOCUS_25') newMode = 'FOCUS_50';
+      else if (mode === 'FOCUS_50') newMode = 'FOCUS_25';
+      else if (mode === 'BREAK_5') newMode = 'BREAK_10';
+      else if (mode === 'BREAK_10') newMode = 'BREAK_5';
       setMode(newMode);
-      
-      // Update Memory State
-      if (newMode.startsWith('FOCUS')) {
-          setLastFocusMode(newMode);
-      } else {
-          setLastBreakMode(newMode);
-      }
-
-      setTimerState(TimerState.IDLE);
       setTimeLeft(MODES[newMode].minutes * 60);
   };
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const handleStart = () => {
+      sendCommand('START', { minutes: MODES[mode].minutes, mode });
   };
-
-  const handleStart = () => setTimerState(TimerState.RUNNING);
   
   const handleStop = () => {
-    // Capture state at the moment of stopping
-    const totalSeconds = MODES[mode].minutes * 60;
-    const elapsedSeconds = totalSeconds - timeLeft;
-    
-    console.log(`[Timer] Stop requested. Elapsed: ${elapsedSeconds}s`);
-
-    // Reset UI immediately
-    setTimerState(TimerState.IDLE);
-    setTimeLeft(MODES[mode].minutes * 60);
-
-    // Save Logic - Threshold: 60 seconds
-    if (elapsedSeconds >= 59) {
-        const minutes = elapsedSeconds / 60;
-        saveSession(minutes);
-    } else {
-        console.log(`[Timer] Session too short to save (<60s)`);
-    }
+      sendCommand('STOP');
   };
 
-  // Logic for the single main button
-  const handleMainAction = () => {
-      if (timerState === TimerState.IDLE) {
-          handleStart();
-      } else {
-          // If running or paused, "Stop" finishes the session
-          handleStop();
-      }
-  };
-
-  // Logic for clicking the timer display
   const toggleTimerPause = () => {
-      if (timerState === TimerState.RUNNING) {
-          setTimerState(TimerState.PAUSED);
-      } else if (timerState === TimerState.PAUSED) {
-          setTimerState(TimerState.RUNNING);
-      }
+      if (timerState === TimerState.RUNNING) sendCommand('PAUSE');
+      else if (timerState === TimerState.PAUSED) sendCommand('RESUME');
   };
 
+  const handleSelectCategory = (cat: Category) => {
+      setActiveCategory(cat);
+      setIsDropdownOpen(false);
+      sendCommand('SET_CATEGORY', cat.id);
+  };
+
+  // Category Management Handlers (API calls + Sync)
   const handleAddCategory = async () => {
     if (newCategoryTitle.trim()) {
-        const titleToAdd = newCategoryTitle.trim();
-        const typeToAdd = newCategoryType;
-
-        if (user?.isGuest) {
-            // Local mock add
-            const newCat: Category = { id: `guest-cat-${Date.now()}`, name: titleToAdd, type: typeToAdd };
-            setCategories([...categories, newCat]);
-            setActiveCategory(newCat);
+        try {
+            if (!user?.isGuest) {
+                await addCategory(newCategoryTitle.trim(), newCategoryType);
+            }
+            if (onCategoryChange) onCategoryChange(); // Refresh App categories
             setNewCategoryTitle('');
             setIsAddingCategory(false);
-            return;
-        }
-
-        try {
-          const newCat = await addCategory(titleToAdd, typeToAdd);
-          setCategories([...categories, newCat]);
-          setActiveCategory(newCat);
-          setNewCategoryTitle('');
-          setIsAddingCategory(false);
-        } catch (error) {
-          console.error("Failed to add category");
-        }
-    }
-  };
-
-  const handleDeleteCategory = async (catToDelete: Category) => {
-    if (user?.isGuest) {
-         const updatedCats = categories.filter(c => c.id !== catToDelete.id);
-         setCategories(updatedCats);
-         if (activeCategory?.id === catToDelete.id) {
-             setActiveCategory(updatedCats.length > 0 ? updatedCats[0] : null);
-         }
-         return;
-    }
-
-    try {
-      await deleteCategory(catToDelete.id);
-      const updatedCats = categories.filter(c => c.id !== catToDelete.id);
-      setCategories(updatedCats);
-      
-      if (activeCategory?.id === catToDelete.id) {
-          setActiveCategory(updatedCats.length > 0 ? updatedCats[0] : null);
-      }
-    } catch (error) {
-       console.error("Failed to delete category");
+        } catch (e) { console.error(e); }
     }
   };
 
   const CurrentIcon = MODES[mode].icon;
+
+  const handleToggleWidget = () => {
+      if ((window as any).electron) (window as any).electron.send('toggle-widget');
+  };
 
   return (
     <div 
         ref={fullScreenRef}
         className="bg-card border border-border rounded-xl p-8 flex flex-col h-full max-w-2xl mx-auto relative shadow-2xl overflow-y-auto custom-scrollbar"
     >
-        {/* Decorative background glow based on mode */}
       <div className={`absolute -top-32 -right-32 w-64 h-64 rounded-full blur-[100px] opacity-20 transition-all duration-700 pointer-events-none ${isFocus ? 'bg-accent-focus' : 'bg-accent-break'} ${timerState === TimerState.RUNNING ? 'scale-125 opacity-30' : ''}`} />
 
-      {/* Full Screen Toggle */}
-      <button 
-        onClick={toggleFullscreen}
-        className="absolute top-6 right-6 z-40 text-gray-500 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5"
-        title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
-      >
-        {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-      </button>
+      <div className="absolute top-6 right-6 z-40 flex gap-2">
+           <button onClick={handleToggleWidget} className="text-gray-500 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5" title="Toggle Mini Widget"><Monitor size={20} /></button>
+           <button onClick={toggleFullscreen} className="text-gray-500 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5" title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}>{isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}</button>
+      </div>
 
-      {/* Feedback Toast */}
       <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${lastSavedMessage ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
           <div className="bg-accent-focus/10 border border-accent-focus/30 text-accent-focus px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg backdrop-blur-md">
-              <Save size={14} />
-              {lastSavedMessage}
+              <Save size={14} />{lastSavedMessage}
           </div>
       </div>
 
-      {/* Header & Mode Selector */}
       <div className="flex flex-col items-center mb-8 z-10 relative mt-4">
         <div className="flex p-1 bg-[#0f1117] rounded-lg border border-[#2a2d36] mb-6">
-            <button
-                onClick={() => switchTab('FOCUS')}
-                disabled={isTimerActive}
-                className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                    isFocus
-                    ? 'bg-[#2a2d36] text-white shadow-sm' 
-                    : 'text-gray-500 hover:text-gray-300'
-                } ${isTimerActive ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-                Focus
-            </button>
-            <button
-                onClick={() => switchTab('BREAK')}
-                disabled={isTimerActive}
-                className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                    !isFocus
-                    ? 'bg-[#2a2d36] text-white shadow-sm' 
-                    : 'text-gray-500 hover:text-gray-300'
-                } ${isTimerActive ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-                Break
-            </button>
+            <button onClick={() => switchTab('FOCUS')} disabled={isTimerActive} className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${isFocus ? 'bg-[#2a2d36] text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'} ${isTimerActive ? 'opacity-50 cursor-not-allowed' : ''}`}>Focus</button>
+            <button onClick={() => switchTab('BREAK')} disabled={isTimerActive} className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${!isFocus ? 'bg-[#2a2d36] text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'} ${isTimerActive ? 'opacity-50 cursor-not-allowed' : ''}`}>Break</button>
         </div>
         
-        {/* Toggleable Pill */}
-        <button 
-            onClick={toggleDuration}
-            disabled={isTimerActive}
-            title={isTimerActive ? "Stop timer to change duration" : "Click to switch duration"}
-            className={`group flex items-center gap-2 px-4 py-1.5 rounded-full border bg-opacity-10 transition-all active:scale-95 ${isFocus ? 'bg-green-500/10 border-green-500/20 text-accent-focus hover:bg-green-500/20' : 'bg-orange-500/10 border-orange-500/20 text-accent-break hover:bg-orange-500/20'} ${isTimerActive ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
-        >
+        <button onClick={toggleDuration} disabled={isTimerActive} className={`group flex items-center gap-2 px-4 py-1.5 rounded-full border bg-opacity-10 transition-all active:scale-95 ${isFocus ? 'bg-green-500/10 border-green-500/20 text-accent-focus hover:bg-green-500/20' : 'bg-orange-500/10 border-orange-500/20 text-accent-break hover:bg-orange-500/20'} ${isTimerActive ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}>
             <CurrentIcon size={14} />
-            <span className="text-xs font-semibold tracking-wide uppercase">
-                {isFocus ? 'Focus' : 'Break'} ({MODES[mode].minutes}m)
-            </span>
+            <span className="text-xs font-semibold tracking-wide uppercase">{isFocus ? 'Focus' : 'Break'} ({MODES[mode].minutes}m)</span>
             {!isTimerActive && <RefreshCw size={10} className="opacity-50 group-hover:rotate-180 transition-transform duration-500" />}
         </button>
       </div>
 
-      {/* Category Selector - Only visible in Focus Mode */}
+      {/* Category Dropdown (Only visible for FOCUS and not active) */}
       <div className={`relative mb-8 z-30 transition-all duration-300 ${isFocus && !isTimerActive ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none h-0 mb-0'}`}>
         <label className={`text-xs text-gray-500 mb-1 block uppercase tracking-wider text-center ${isTimerActive ? 'opacity-50' : ''}`}>Current Category</label>
-        
-        {isAddingCategory ? (
-             <div className="flex flex-col gap-3 max-w-sm mx-auto w-full animate-in fade-in slide-in-from-top-2">
-                <div className="flex gap-2">
-                    <input 
-                        autoFocus
-                        value={newCategoryTitle}
-                        onChange={(e) => setNewCategoryTitle(e.target.value)}
-                        className="flex-1 bg-[#2a2d36] border border-[#3f434e] rounded-lg px-3 py-2 text-white outline-none focus:border-accent-focus text-sm placeholder:text-gray-600"
-                        placeholder="Category name..."
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
-                    />
-                    <button onClick={handleAddCategory} className="p-2 bg-accent-focus text-black rounded-lg hover:brightness-110 transition-all"><Check size={18} /></button>
-                    <button onClick={() => setIsAddingCategory(false)} className="p-2 bg-[#2a2d36] text-gray-400 rounded-lg hover:text-white transition-colors"><X size={18} /></button>
-                </div>
-                
-                {/* Type Selection */}
-                <div className="flex gap-2 justify-center">
-                    {(['focus', 'meeting'] as const).map((t) => (
-                        <button
-                            key={t}
-                            onClick={() => setNewCategoryType(t)}
-                            className={`
-                                px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-all
-                                ${newCategoryType === t 
-                                    ? (t === 'focus' ? 'bg-accent-focus text-black border-accent-focus' 
-                                       : 'bg-accent-meeting text-white border-accent-meeting')
-                                    : 'bg-[#1a1d24] border-[#3f434e] text-gray-500 hover:border-gray-500 hover:text-gray-300'
-                                }
-                            `}
-                        >
-                            {t}
-                        </button>
-                    ))}
-                </div>
-             </div>
-        ) : (
             <div className="flex gap-2 max-w-sm mx-auto">
                 <div className="relative flex-1">
                     <button 
                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        disabled={isLoading || isTimerActive}
+                        disabled={isTimerActive}
                         className={`w-full bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg p-3 flex justify-between items-center text-white transition-colors group disabled:opacity-70 ${isTimerActive ? 'cursor-not-allowed opacity-50' : ''}`}
                     >
-                         {isLoading ? (
-                             <div className="flex items-center gap-2">
-                                <Loader2 className="animate-spin" size={16} />
-                                <span className="font-medium text-gray-400">Loading categories...</span>
-                             </div>
-                         ) : (
+                         {activeCategory ? (
                              <>
-                                <span className="font-medium truncate">{activeCategory?.name || "Select a category"}</span>
+                                <span className="font-medium truncate">{activeCategory.name}</span>
                                 <ChevronDown size={16} className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                              </>
+                         ) : (
+                             <div className="flex items-center gap-2"><span className="font-medium text-gray-400">Select Category</span></div>
                          )}
                     </button>
-                    
-                    {/* Dropdown Menu */}
-                    {isDropdownOpen && !isLoading && !isTimerActive && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
+                    {isDropdownOpen && !isTimerActive && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-xl shadow-xl overflow-hidden z-50">
                             <div className="max-h-48 overflow-y-auto custom-scrollbar">
                                 {categories.map(cat => (
-                                    <div key={cat.id} className="flex items-center justify-between p-3 hover:bg-[#2a2d36] group/item transition-colors">
-                                        <button 
-                                            onClick={() => { setActiveCategory(cat); setIsDropdownOpen(false); }}
-                                            className="flex-1 text-left text-sm text-gray-200 truncate"
-                                        >
-                                            {cat.name}
-                                        </button>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat); }}
-                                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors opacity-0 group-hover/item:opacity-100"
-                                            title="Delete category"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
+                                    <button key={cat.id} onClick={() => handleSelectCategory(cat)} className="w-full text-left p-3 hover:bg-[#2a2d36] text-sm text-gray-200 truncate border-b border-[#2a2d36] last:border-0">{cat.name}</button>
                                 ))}
-                                {categories.length === 0 && (
-                                    <div className="p-4 text-center text-xs text-gray-500">No categories created</div>
-                                )}
                             </div>
                         </div>
                     )}
@@ -553,57 +332,22 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
                     <Plus size={20} />
                 </button>
             </div>
-        )}
       </div>
 
-      {/* Timer Display */}
-      <div 
-        onClick={toggleTimerPause}
-        className={`flex-1 flex flex-col items-center justify-center mb-8 z-10 min-h-[120px] shrink-0 relative group ${timerState !== TimerState.IDLE ? 'cursor-pointer' : ''}`}
-      >
+      <div onClick={toggleTimerPause} className={`flex-1 flex flex-col items-center justify-center mb-8 z-10 min-h-[120px] shrink-0 relative group ${timerState !== TimerState.IDLE ? 'cursor-pointer' : ''}`}>
         <div className={`text-7xl sm:text-8xl font-mono font-bold tracking-wider mb-4 transition-all duration-500 select-none ${timerState === TimerState.RUNNING ? `${MODES[mode].color} drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]` : timerState === TimerState.PAUSED ? 'text-gray-500' : 'text-white'}`}>
           {formatTime(timeLeft)}
         </div>
-        
-        <p className="text-gray-400 text-base font-medium text-center">
-            {timerState === TimerState.PAUSED 
-                ? 'Timer Paused' 
-                : timerState === TimerState.RUNNING 
-                    ? (isFocus ? 'Stay focused, keep flowing.' : 'Take a breath, relax.') 
-                    : 'Ready to start?'}
-        </p>
+        <p className="text-gray-400 text-base font-medium text-center">{timerState === TimerState.PAUSED ? 'Timer Paused' : timerState === TimerState.RUNNING ? (isFocus ? 'Stay focused.' : 'Take a breath.') : 'Ready to start?'}</p>
       </div>
 
-      {/* Controls */}
       <div className="flex justify-center w-full z-40 mt-auto relative">
-         <button 
-            onClick={handleMainAction}
-            className={`px-10 py-3 rounded-xl font-bold transition-all shadow-lg hover:brightness-110 active:scale-95 flex items-center gap-2 ${timerState === TimerState.IDLE ? MODES[mode].bg + ' text-black' : 'bg-[#2a2d36] text-white border border-[#3f434e] hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'}`}
-         >
-            {timerState === TimerState.IDLE ? (
-                <>
-                    <Play size={18} fill="currentColor" /> Start
-                </>
-            ) : (
-                <>
-                    <Square size={18} fill="currentColor" /> Stop
-                </>
-            )}
+         <button onClick={timerState === TimerState.IDLE ? handleStart : handleStop} className={`px-10 py-3 rounded-xl font-bold transition-all shadow-lg hover:brightness-110 active:scale-95 flex items-center gap-2 ${timerState === TimerState.IDLE ? MODES[mode].bg + ' text-black' : 'bg-[#2a2d36] text-white border border-[#3f434e] hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'}`}>
+            {timerState === TimerState.IDLE ? <><Play size={18} fill="currentColor" /> Start</> : <><Square size={18} fill="currentColor" /> Stop</>}
          </button>
       </div>
-
-      {/* Dev Mode Simulation Button */}
-      {isDevMode && (
-        <button 
-            onClick={handleSimulateSession}
-            className="absolute bottom-4 left-4 z-50 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 text-xs font-mono rounded hover:bg-yellow-500/20 transition-colors flex items-center gap-2"
-            title="Simulate a completed 25m session immediately"
-        >
-            <Zap size={12} />
-            DEV: SIM 25M
-        </button>
-      )}
-
+      
+       {isDevMode && <button onClick={() => sendCommand('START', { minutes: 0.1, mode })} className="absolute bottom-4 left-4 z-50 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 text-xs font-mono rounded hover:bg-yellow-500/20 transition-colors flex items-center gap-2"><Zap size={12} /> DEV: TEST COMPLETE</button>}
     </div>
   );
 };

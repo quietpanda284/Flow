@@ -6,13 +6,13 @@ let nextId = 0;
 contextBridge.exposeInMainWorld('electron', {
   send: (channel, data) => {
     // Whitelist channels
-    let validChannels = ['toMain', 'app-state-update', 'widget-command', 'toggle-widget', 'widget-resize'];
+    let validChannels = ['timer-command', 'widget-command', 'toggle-widget', 'widget-resize'];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
   },
   receive: (channel, func) => {
-    let validChannels = ['fromMain', 'widget-update', 'app-command'];
+    let validChannels = ['timer-update', 'timer-complete', 'widget-update'];
     if (validChannels.includes(channel)) {
       const id = nextId++;
       const subscription = (event, ...args) => func(...args);

@@ -8,7 +8,17 @@ const __dirname = path.dirname(__filename);
 
 let mainWindow;
 let widgetWindow;
-let lastAppState = null; // Cache to ensure widget gets data on startup
+
+// --- CENTRALIZED TIMER STATE (Single Source of Truth) ---
+const timerState = {
+    handle: null,
+    secondsRemaining: 25 * 60,
+    totalDuration: 25 * 60,
+    status: 'IDLE', // 'IDLE' | 'RUNNING' | 'PAUSED'
+    mode: 'FOCUS_25',
+    activeCategory: null, // { id, name, type }
+    availableCategories: [] // Cache for widget
+};
 
 function createWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -36,12 +46,13 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    createWidgetWindow(); // Create widget after main window
+    createWidgetWindow();
+    broadcastTimerUpdate(); // Send initial state
   });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
-    if (widgetWindow) widgetWindow.close(); // Close widget if main app closes
+    if (widgetWindow) widgetWindow.close();
   });
 }
 
@@ -50,7 +61,6 @@ function createWidgetWindow() {
   const widgetWidth = 320;
   const widgetHeight = 50;
 
-  // Position at bottom right with some padding
   const xPos = width - widgetWidth - 24;
   const yPos = height - widgetHeight - 24;
 
@@ -59,13 +69,13 @@ function createWidgetWindow() {
     height: widgetHeight,
     x: xPos,
     y: yPos,
-    frame: false, // Frameless
-    resizable: false, // Keep size fixed
+    frame: false,
+    resizable: false,
     alwaysOnTop: true,
-    transparent: true, // Allow rounded corners if needed via CSS
-    skipTaskbar: true, // Don't show in dock/taskbar
-    backgroundColor: '#00000000', // Transparent bg for CSS control
-    hasShadow: false, // Shadow handled by CSS
+    transparent: true,
+    skipTaskbar: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -74,78 +84,195 @@ function createWidgetWindow() {
     show: false,
   });
 
-  // Load the separate widget HTML file
   widgetWindow.loadFile(path.join(__dirname, 'widget.html'));
 
   widgetWindow.once('ready-to-show', () => {
-    widgetWindow.showInactive(); // Show without taking focus from main window
-    
-    // Immediate sync if data exists
-    if (lastAppState) {
-        widgetWindow.webContents.send('widget-update', lastAppState);
-    }
+    widgetWindow.showInactive();
+    broadcastTimerUpdate(); // Send initial state
   });
 }
 
-// --- IPC COMMUNICATION ---
+// --- TIMER LOGIC ---
 
-// 1. React App sends state updates (Time, Timer Status) -> Main -> Widget
-ipcMain.on('app-state-update', (event, data) => {
-  lastAppState = data; // Cache it
-  if (widgetWindow && !widgetWindow.isDestroyed()) {
-    widgetWindow.webContents.send('widget-update', data);
-  }
+function broadcastTimerUpdate() {
+    const payload = {
+        secondsRemaining: timerState.secondsRemaining,
+        totalDuration: timerState.totalDuration,
+        status: timerState.status,
+        mode: timerState.mode,
+        activeCategory: timerState.activeCategory,
+        availableCategories: timerState.availableCategories
+    };
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('timer-update', payload);
+    }
+    if (widgetWindow && !widgetWindow.isDestroyed()) {
+        widgetWindow.webContents.send('timer-update', payload);
+    }
+}
+
+function stopTimer() {
+    if (timerState.handle) {
+        clearInterval(timerState.handle);
+        timerState.handle = null;
+    }
+    timerState.status = 'IDLE';
+    // Reset to full duration of current mode
+    timerState.secondsRemaining = timerState.totalDuration;
+    broadcastTimerUpdate();
+}
+
+function startTimer(durationMinutes, mode) {
+    if (timerState.handle) clearInterval(timerState.handle);
+    
+    // Update State
+    if (durationMinutes) {
+        timerState.totalDuration = durationMinutes * 60;
+        timerState.secondsRemaining = durationMinutes * 60;
+    }
+    if (mode) timerState.mode = mode;
+    
+    timerState.status = 'RUNNING';
+    
+    // Initial broadcast
+    broadcastTimerUpdate();
+
+    // Start Interval
+    timerState.handle = setInterval(() => {
+        timerState.secondsRemaining--;
+
+        if (timerState.secondsRemaining <= 0) {
+            // Timer Complete
+            clearInterval(timerState.handle);
+            timerState.handle = null;
+            timerState.status = 'IDLE';
+            timerState.secondsRemaining = 0;
+            
+            broadcastTimerUpdate();
+            
+            // Notify Main Window to save session
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('timer-complete', {
+                    mode: timerState.mode,
+                    duration: timerState.totalDuration / 60
+                });
+            }
+        } else {
+            broadcastTimerUpdate();
+        }
+    }, 1000);
+}
+
+function pauseTimer() {
+    if (timerState.handle) {
+        clearInterval(timerState.handle);
+        timerState.handle = null;
+    }
+    timerState.status = 'PAUSED';
+    broadcastTimerUpdate();
+}
+
+function resumeTimer() {
+    if (timerState.status === 'PAUSED') {
+        timerState.status = 'RUNNING';
+        broadcastTimerUpdate();
+        
+        timerState.handle = setInterval(() => {
+            timerState.secondsRemaining--;
+            if (timerState.secondsRemaining <= 0) {
+                 clearInterval(timerState.handle);
+                 timerState.handle = null;
+                 timerState.status = 'IDLE';
+                 timerState.secondsRemaining = 0;
+                 broadcastTimerUpdate();
+                 if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('timer-complete', {
+                        mode: timerState.mode,
+                        duration: timerState.totalDuration / 60
+                    });
+                 }
+            } else {
+                broadcastTimerUpdate();
+            }
+        }, 1000);
+    }
+}
+
+// --- IPC HANDLERS ---
+
+ipcMain.on('timer-command', (event, cmd) => {
+    switch (cmd.type) {
+        case 'START':
+            startTimer(cmd.payload.minutes, cmd.payload.mode);
+            break;
+        case 'STOP':
+            stopTimer();
+            break;
+        case 'PAUSE':
+            pauseTimer();
+            break;
+        case 'RESUME':
+            resumeTimer();
+            break;
+        case 'SET_CATEGORY':
+            // Update active category
+            const catId = cmd.payload;
+            const cat = timerState.availableCategories.find(c => c.id === catId);
+            if (cat) {
+                timerState.activeCategory = cat;
+                broadcastTimerUpdate();
+            }
+            break;
+        case 'SYNC_CATEGORIES':
+            // React app sends list of categories to cache for widget
+            timerState.availableCategories = cmd.payload.categories || [];
+            if (cmd.payload.activeCategory) {
+                timerState.activeCategory = cmd.payload.activeCategory;
+            }
+            broadcastTimerUpdate();
+            break;
+    }
 });
 
-// 2. Widget sends commands (Start Timer, Pause, etc) -> Main -> React App
+// Widget visibility commands
 ipcMain.on('widget-command', (event, command) => {
-  if (command.type === 'HIDE_WIDGET') {
-     // Handle visual hiding directly in main process
-     if (widgetWindow) {
-         widgetWindow.hide();
-         // Auto-show logic
-         if (command.payload) { // Payload acts as minutes in this context
-             const minutes = typeof command.payload === 'number' ? command.payload : 0;
-             if (minutes > 0) {
-                 setTimeout(() => {
-                     if(widgetWindow && !widgetWindow.isDestroyed()) widgetWindow.showInactive();
-                 }, minutes * 60 * 1000);
+    if (command.type === 'HIDE_WIDGET') {
+        if (widgetWindow) widgetWindow.hide();
+    } else {
+        // Forward timer commands from widget to the logic above
+        // We can just re-emit to 'timer-command' logic or call functions directly
+        // For simplicity, let's just route manually
+        if (command.type === 'START_FOCUS') startTimer(command.payload, command.payload === 50 ? 'FOCUS_50' : 'FOCUS_25');
+        else if (command.type === 'START_BREAK') startTimer(command.payload, command.payload === 10 ? 'BREAK_10' : 'BREAK_5');
+        else if (command.type === 'STOP_TIMER') stopTimer();
+        else if (command.type === 'SET_CATEGORY') {
+             const cat = timerState.availableCategories.find(c => c.id === command.payload);
+             if (cat) {
+                 timerState.activeCategory = cat;
+                 broadcastTimerUpdate();
              }
-         }
-     }
-  } else {
-      // Forward other commands to React App to handle logic
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('app-command', command);
-      }
-  }
+        }
+    }
 });
 
-// 3. React App tells Widget to show up (e.g. toggle button in settings)
 ipcMain.on('toggle-widget', () => {
     if (widgetWindow) {
         if (widgetWindow.isVisible()) widgetWindow.hide();
         else {
             widgetWindow.showInactive();
-            if (lastAppState) {
-                widgetWindow.webContents.send('widget-update', lastAppState);
-            }
+            broadcastTimerUpdate();
         }
     } else {
         createWidgetWindow();
     }
 });
 
-// 4. Widget Resizing (Menu Toggle)
 ipcMain.on('widget-resize', (event, { height }) => {
     if (!widgetWindow || widgetWindow.isDestroyed()) return;
-
     const bounds = widgetWindow.getBounds();
     const bottomY = bounds.y + bounds.height;
-    
-    // Calculate new Y so the bottom stays anchored
     const newY = bottomY - height;
-
     widgetWindow.setBounds({
         x: bounds.x,
         y: newY,
@@ -154,15 +281,12 @@ ipcMain.on('widget-resize', (event, { height }) => {
     });
 });
 
-
-// --- GLOBAL HOTKEY LOGIC ---
 const registerGlobalShortcuts = () => {
   const ret = globalShortcut.register('CommandOrControl+K', () => {
     if (!mainWindow) {
         createWindow();
         return;
     }
-
     if (mainWindow.isVisible() && mainWindow.isFocused()) {
       mainWindow.hide();
     } else {
@@ -170,20 +294,13 @@ const registerGlobalShortcuts = () => {
       mainWindow.focus();
     }
   });
-
-  if (!ret) {
-    console.log('Registration of Global Hotkey failed');
-  }
 };
 
 app.whenReady().then(() => {
   createWindow();
   registerGlobalShortcuts();
-
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
@@ -192,7 +309,5 @@ app.on('will-quit', () => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (process.platform !== 'darwin') app.quit();
 });
