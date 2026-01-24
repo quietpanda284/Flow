@@ -2,6 +2,7 @@ import { app, BrowserWindow, globalShortcut, screen, ipcMain } from 'electron';
 import path from 'path';
 import isDev from 'electron-is-dev';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -9,16 +10,76 @@ const __dirname = path.dirname(__filename);
 let mainWindow;
 let widgetWindow;
 
+// Persistence File Path
+const DATA_FILE = path.join(app.getPath('userData'), 'user-data.json');
+
 // --- CENTRALIZED TIMER STATE (Single Source of Truth) ---
-const timerState = {
-    handle: null,
+let timerState = {
+    handle: null, // Interval ID (Not saved)
     secondsRemaining: 25 * 60,
     totalDuration: 25 * 60,
     status: 'IDLE', // 'IDLE' | 'RUNNING' | 'PAUSED'
     mode: 'FOCUS_25',
     activeCategory: null, // { id, name, type }
-    availableCategories: [] // Cache for widget
+    availableCategories: [], // Cache for widget
+    
+    // Persistent Stats
+    totalFocusTime: 0,
+    dailyStats: {} // Format: { "YYYY-MM-DD": seconds }
 };
+
+let autoSaveHandle = null;
+
+// --- PERSISTENCE FUNCTIONS ---
+
+function loadUserData() {
+    try {
+        if (fs.existsSync(DATA_FILE)) {
+            const rawData = fs.readFileSync(DATA_FILE, 'utf-8');
+            const savedData = JSON.parse(rawData);
+            
+            // Merge saved data into timerState, preserving defaults for missing keys
+            // We explicitely exclude 'handle' to avoid overwriting it with garbage
+            const { handle, ...dataToRestore } = savedData;
+            
+            timerState = {
+                ...timerState,
+                ...dataToRestore
+            };
+
+            console.log('User data loaded successfully.');
+
+            // Resume timer if it was running or paused
+            if (timerState.status === 'RUNNING') {
+                // If it was running, resume the interval immediately
+                resumeTimer(); 
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load user data:', error);
+    }
+}
+
+function saveUserData() {
+    try {
+        // Create a copy without the internal handle
+        const { handle, ...dataToSave } = timerState;
+        fs.writeFileSync(DATA_FILE, JSON.stringify(dataToSave, null, 2));
+        // console.log('User data saved.');
+    } catch (error) {
+        console.error('Failed to save user data:', error);
+    }
+}
+
+function startAutoSave() {
+    if (autoSaveHandle) clearInterval(autoSaveHandle);
+    // Save every 30 seconds
+    autoSaveHandle = setInterval(() => {
+        if (timerState.status === 'RUNNING') {
+            saveUserData();
+        }
+    }, 30000);
+}
 
 function createWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -94,6 +155,13 @@ function createWidgetWindow() {
 
 // --- TIMER LOGIC ---
 
+function getTodayStr() {
+    const now = new Date();
+    const offset = now.getTimezoneOffset();
+    const local = new Date(now.getTime() - (offset * 60 * 1000));
+    return local.toISOString().split('T')[0];
+}
+
 function broadcastTimerUpdate() {
     const payload = {
         secondsRemaining: timerState.secondsRemaining,
@@ -101,7 +169,10 @@ function broadcastTimerUpdate() {
         status: timerState.status,
         mode: timerState.mode,
         activeCategory: timerState.activeCategory,
-        availableCategories: timerState.availableCategories
+        availableCategories: timerState.availableCategories,
+        // Send extra stats so UI can use them
+        totalFocusTime: timerState.totalFocusTime,
+        dailyStats: timerState.dailyStats
     };
 
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -121,6 +192,7 @@ function stopTimer() {
     // Reset to full duration of current mode
     timerState.secondsRemaining = timerState.totalDuration;
     broadcastTimerUpdate();
+    saveUserData(); // Save on stop
 }
 
 function startTimer(durationMinutes, mode) {
@@ -137,10 +209,20 @@ function startTimer(durationMinutes, mode) {
     
     // Initial broadcast
     broadcastTimerUpdate();
+    saveUserData(); // Save on start
 
     // Start Interval
     timerState.handle = setInterval(() => {
         timerState.secondsRemaining--;
+        
+        // --- PERSISTENCE UPDATE ---
+        // Only track "work" modes for stats, not breaks
+        if (timerState.mode.includes('FOCUS')) {
+            timerState.totalFocusTime++;
+            const today = getTodayStr();
+            timerState.dailyStats[today] = (timerState.dailyStats[today] || 0) + 1;
+        }
+        // --------------------------
 
         if (timerState.secondsRemaining <= 0) {
             // Timer Complete
@@ -149,6 +231,7 @@ function startTimer(durationMinutes, mode) {
             timerState.status = 'IDLE';
             timerState.secondsRemaining = 0;
             
+            saveUserData(); // Save on complete
             broadcastTimerUpdate();
             
             // Notify Main Window to save session
@@ -171,20 +254,36 @@ function pauseTimer() {
     }
     timerState.status = 'PAUSED';
     broadcastTimerUpdate();
+    saveUserData();
 }
 
 function resumeTimer() {
-    if (timerState.status === 'PAUSED') {
+    // Treat 'RUNNING' as a valid state to resume from (e.g. app restart)
+    if (timerState.status === 'PAUSED' || timerState.status === 'RUNNING') {
+        
+        // Ensure we don't have double intervals
+        if (timerState.handle) clearInterval(timerState.handle);
+
         timerState.status = 'RUNNING';
         broadcastTimerUpdate();
         
         timerState.handle = setInterval(() => {
             timerState.secondsRemaining--;
+            
+            // --- PERSISTENCE UPDATE ---
+            if (timerState.mode.includes('FOCUS')) {
+                timerState.totalFocusTime++;
+                const today = getTodayStr();
+                timerState.dailyStats[today] = (timerState.dailyStats[today] || 0) + 1;
+            }
+            // --------------------------
+
             if (timerState.secondsRemaining <= 0) {
                  clearInterval(timerState.handle);
                  timerState.handle = null;
                  timerState.status = 'IDLE';
                  timerState.secondsRemaining = 0;
+                 saveUserData();
                  broadcastTimerUpdate();
                  if (mainWindow && !mainWindow.isDestroyed()) {
                     mainWindow.webContents.send('timer-complete', {
@@ -222,6 +321,7 @@ ipcMain.on('timer-command', (event, cmd) => {
             if (cat) {
                 timerState.activeCategory = cat;
                 broadcastTimerUpdate();
+                saveUserData(); // Save preference
             }
             break;
         case 'SYNC_CATEGORIES':
@@ -241,8 +341,6 @@ ipcMain.on('widget-command', (event, command) => {
         if (widgetWindow) widgetWindow.hide();
     } else {
         // Forward timer commands from widget to the logic above
-        // We can just re-emit to 'timer-command' logic or call functions directly
-        // For simplicity, let's just route manually
         if (command.type === 'START_FOCUS') startTimer(command.payload, command.payload === 50 ? 'FOCUS_50' : 'FOCUS_25');
         else if (command.type === 'START_BREAK') startTimer(command.payload, command.payload === 10 ? 'BREAK_10' : 'BREAK_5');
         else if (command.type === 'STOP_TIMER') stopTimer();
@@ -251,6 +349,7 @@ ipcMain.on('widget-command', (event, command) => {
              if (cat) {
                  timerState.activeCategory = cat;
                  broadcastTimerUpdate();
+                 saveUserData();
              }
         }
     }
@@ -297,17 +396,24 @@ const registerGlobalShortcuts = () => {
 };
 
 app.whenReady().then(() => {
+  loadUserData(); // LOAD DATA ON STARTUP
+  startAutoSave(); // START AUTO-SAVE
+  
   createWindow();
   registerGlobalShortcuts();
+  
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on('will-quit', () => {
+  saveUserData(); // SAVE ON QUIT
   globalShortcut.unregisterAll();
+  if (autoSaveHandle) clearInterval(autoSaveHandle);
 });
 
 app.on('window-all-closed', () => {
+  saveUserData(); // SAVE ON WINDOW CLOSE
   if (process.platform !== 'darwin') app.quit();
 });
