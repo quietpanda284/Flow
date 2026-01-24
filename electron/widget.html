@@ -18,7 +18,6 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            /* Align start to allow downward expansion */
             justify-content: flex-start; 
             align-items: flex-end; 
         }
@@ -33,7 +32,7 @@
             padding: 0 12px;
             height: 50px; 
             flex-shrink: 0;
-            -webkit-app-region: drag; 
+            -webkit-app-region: drag; /* Allows dragging via edges/padding */
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             position: relative;
             z-index: 20;
@@ -42,9 +41,8 @@
             transition: background 0.2s ease-in 2s, border-color 0.2s ease-in 2s, box-shadow 0.2s ease-in 2s;
         }
 
-        /* HIDE: When container is hovered BUT menu button is NOT hovered */
-        /* This covers the content, the padding, and the borders */
-        body:not(.menu-active) .container:hover:not(:has(.menu-btn:hover)) {
+        /* --- THE NEW HIDE LOGIC (Toggled by JS) --- */
+        .container.hide-mode {
             background: rgba(15, 17, 23, 0.0);
             border-color: rgba(42, 45, 54, 0.0);
             box-shadow: none;
@@ -55,16 +53,18 @@
             display: flex;
             align-items: center;
             flex: 1;
-            /* REAPPEARANCE: 2s delay */
             opacity: 1;
             transition: opacity 0.2s ease-in 2s;
+            
+            /* CRITICAL FIX: Restores mouse events so Hover works */
+            -webkit-app-region: no-drag; 
         }
 
-        /* HIDE Content: Sync with container hiding */
-        body:not(.menu-active) .container:hover:not(:has(.menu-btn:hover)) .content-wrapper {
+        .container.hide-mode .content-wrapper {
             opacity: 0;
             transition-delay: 0s; /* Immediate hide */
         }
+        /* ------------------------------------------ */
 
         .primary-display {
             display: flex;
@@ -135,7 +135,7 @@
             padding: 4px;
             border-radius: 4px;
             transition: color 0.2s, background 0.2s;
-            -webkit-app-region: no-drag;
+            -webkit-app-region: no-drag; /* Ensure button is clickable */
             margin-left: 8px;
             display: flex;
             align-items: center;
@@ -147,8 +147,7 @@
             background: rgba(255,255,255,0.1);
         }
         
-        /* When container is hidden, make menu btn slightly more visible against desktop */
-        body:not(.menu-active) .container:hover:not(:has(.menu-btn:hover)) .menu-btn {
+        .container.hide-mode .menu-btn {
              background: rgba(0,0,0,0.5);
              color: white;
         }
@@ -156,7 +155,7 @@
         /* NESTED MENU STYLES */
         .menu-wrapper {
             position: absolute;
-            top: 55px; /* Drop DOWN */
+            top: 55px;
             right: 0;
             display: none;
             -webkit-app-region: no-drag;
@@ -217,7 +216,6 @@
             transform: rotate(90deg);
         }
 
-        /* Submenu */
         .submenu {
             display: none;
             position: absolute;
@@ -265,10 +263,8 @@
 </head>
 <body>
     
-    <!-- Menu Structure -->
     <div class="menu-wrapper" id="mainMenu">
         <ul class="menu">
-            <!-- Focus -->
             <li class="menu-item">
                 <div class="menu-link" onclick="toggleSubmenu(event)">
                     Focus
@@ -280,7 +276,6 @@
                 </ul>
             </li>
 
-            <!-- Break -->
             <li class="menu-item">
                 <div class="menu-link" onclick="toggleSubmenu(event)">
                     Break
@@ -292,12 +287,10 @@
                 </ul>
             </li>
 
-            <!-- Stop -->
             <li class="menu-item">
                 <div class="menu-link" onclick="sendCommand('STOP_TIMER')">Stop Timer</div>
             </li>
 
-            <!-- Category -->
             <li class="menu-item">
                 <div class="menu-link" onclick="toggleSubmenu(event)">
                     Category
@@ -308,7 +301,6 @@
                 </ul>
             </li>
 
-            <!-- Hide Widget -->
             <li class="menu-item">
                 <div class="menu-link" onclick="toggleSubmenu(event)">
                     Hide Widget
@@ -325,9 +317,7 @@
     </div>
 
     <div class="container" id="widgetContainer">
-        <!-- Content Wrapper: Hovering this (indirectly via container check) triggers hide -->
         <div class="content-wrapper">
-            <!-- Timer -->
             <div class="primary-display" id="mainDisplay">
                 <div class="ring-container" id="ringContainer">
                 <svg class="progress-ring" width="22" height="22">
@@ -346,7 +336,6 @@
                 <span class="time-text" id="timeText">12:00</span>
             </div>
 
-            <!-- Metrics -->
             <div class="metrics">
                 <div class="metric-item">
                     <span class="metric-value" id="statusText">IDLE</span>
@@ -359,7 +348,6 @@
             </div>
         </div>
 
-        <!-- Menu Toggle: Hovering this prevents the hide logic -->
         <button class="menu-btn" id="menuBtn">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
@@ -490,6 +478,7 @@
 
         const menuBtn = document.getElementById('menuBtn');
         const menuWrapper = document.getElementById('mainMenu');
+        const container = document.getElementById('widgetContainer');
 
         menuBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -523,19 +512,19 @@
         function toggleMenu(open) {
             isMenuOpen = open;
             if (isMenuOpen) {
-                // Resize for Downward Menu. 
-                // send 'align: top' to keep the Y position (widget bar) constant and expand downwards.
                 window.electron.send('widget-resize', { height: 350, align: 'top' });
                 
                 menuWrapper.classList.add('show');
                 menuBtn.classList.add('active');
                 document.body.classList.add('menu-active');
+                
+                // Force show when menu is open
+                container.classList.remove('hide-mode');
             } else {
                 menuWrapper.classList.remove('show');
                 menuBtn.classList.remove('active');
                 document.body.classList.remove('menu-active');
                 
-                // Return to small bar. 
                 window.electron.send('widget-resize', { height: 50, align: 'top' });
                 
                 document.querySelectorAll('.menu-item.active').forEach(el => el.classList.remove('active'));
@@ -554,6 +543,35 @@
                  updateIdleDisplay();
             }
         }, 1000);
+
+        // --- NEW HOVER LOGIC START ---
+        
+        // 1. Enter Widget -> Hide (unless menu is open)
+        container.addEventListener('mouseenter', () => {
+            if (!document.body.classList.contains('menu-active')) {
+                container.classList.add('hide-mode');
+            }
+        });
+
+        // 2. Leave Widget -> Show
+        container.addEventListener('mouseleave', () => {
+            container.classList.remove('hide-mode');
+        });
+
+        // 3. Hover Menu Button -> FORCE Show (cancels the hide)
+        menuBtn.addEventListener('mouseenter', () => {
+            container.classList.remove('hide-mode');
+        });
+
+        // 4. Leave Menu Button -> Hide again (if we are still inside the container)
+        menuBtn.addEventListener('mouseleave', () => {
+            if (!document.body.classList.contains('menu-active')) {
+                container.classList.add('hide-mode');
+            }
+        });
+        
+        // --- NEW HOVER LOGIC END ---
+
     </script>
 </body>
 </html>
