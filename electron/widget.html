@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flow Widget</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; user-select: none; }
         
@@ -84,15 +84,6 @@
             line-height: 1;
         }
         
-        .metric-item.clickable {
-            cursor: pointer;
-            -webkit-app-region: no-drag;
-            transition: opacity 0.2s;
-        }
-        .metric-item.clickable:hover {
-            opacity: 0.8;
-        }
-        
         .metric-value {
             font-size: 13px;
             font-weight: 600;
@@ -120,112 +111,178 @@
             transition: color 0.2s, background 0.2s;
             -webkit-app-region: no-drag;
             margin-left: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .menu-btn:hover, .menu-btn.active {
             color: white;
             background: rgba(255,255,255,0.1);
         }
 
-        .dropdown {
+        /* NESTED MENU STYLES */
+        .menu-wrapper {
             position: absolute;
             bottom: 60px;
             right: 0;
+            display: none;
+            -webkit-app-region: no-drag;
+            z-index: 100;
+        }
+        .menu-wrapper.show {
+            display: block;
+        }
+
+        .menu {
             background: #1a1d24;
             border: 1px solid #2a2d36;
             border-radius: 8px;
-            width: 200px;
-            display: none;
-            flex-direction: column;
+            padding: 4px;
+            min-width: 140px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            z-index: 10;
-            -webkit-app-region: no-drag;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: opacity 0.2s, transform 0.2s;
-            max-height: 280px;
-            overflow-y: auto;
-        }
-        
-        .dropdown::-webkit-scrollbar { width: 4px; }
-        .dropdown::-webkit-scrollbar-track { background: #1a1d24; }
-        .dropdown::-webkit-scrollbar-thumb { background: #2a2d36; border-radius: 2px; }
-
-        .dropdown.show { 
-            display: flex; 
-            opacity: 1;
-            transform: translateY(0);
+            list-style: none;
+            margin: 0;
         }
 
-        .dropdown button {
-            background: none;
-            border: none;
+        .menu-item {
+            position: relative;
+        }
+
+        .menu-link {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
             color: #d1d5db;
-            padding: 10px 14px;
-            text-align: left;
             font-size: 12px;
             font-weight: 500;
+            text-decoration: none;
+            border-radius: 4px;
             cursor: pointer;
-            transition: background 0.2s;
-            width: 100%;
+            transition: background 0.1s;
         }
-        .dropdown button:hover {
+
+        .menu-link:hover {
             background: #2a2d36;
             color: white;
         }
 
-        .dropdown-header {
-            font-size: 10px;
-            text-transform: uppercase;
-            color: #6b7280;
-            padding: 8px 14px 4px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            background: #1a1d24;
-            position: sticky;
-            top: 0;
-            z-index: 5;
-        }
-        
-        .category-item {
-            padding-left: 20px !important;
-            font-size: 11px !important;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .category-item.active {
-            color: #00FF94 !important;
-            background: rgba(0, 255, 148, 0.05);
-        }
-        
-        .check-icon {
+        /* Arrow Icon for Items with Submenu */
+        .arrow {
             width: 12px;
             height: 12px;
-            opacity: 0;
+            margin-left: 8px;
+            opacity: 0.6;
         }
-        .category-item.active .check-icon {
-            opacity: 1;
+
+        /* Submenu */
+        .submenu {
+            display: none;
+            position: absolute;
+            right: 100%; /* Position to the left of the parent */
+            top: 0;
+            margin-right: 4px; /* Slight gap */
+            background: #1a1d24;
+            border: 1px solid #2a2d36;
+            border-radius: 8px;
+            padding: 4px;
+            min-width: 140px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            list-style: none;
+            z-index: 101;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        /* Show Submenu on Hover */
+        .menu-item:hover > .submenu {
+            display: block;
+        }
+
+        /* Submenu specific tweaks */
+        .submenu .menu-link {
+            padding: 8px 12px;
         }
         
+        .submenu::-webkit-scrollbar { width: 4px; }
+        .submenu::-webkit-scrollbar-track { background: #1a1d24; }
+        .submenu::-webkit-scrollbar-thumb { background: #2a2d36; border-radius: 2px; }
+
+        .category-check {
+            width: 12px;
+            height: 12px;
+            margin-right: 6px;
+            opacity: 0;
+        }
+        .menu-link.active .category-check {
+            opacity: 1;
+            color: #00FF94;
+        }
+        .menu-link.active {
+            color: #00FF94;
+        }
     </style>
 </head>
 <body>
     
-    <!-- Dropdown -->
-    <div class="dropdown" id="dropdown">
-        <div class="dropdown-header">Controls</div>
-        <button onclick="sendCommand('START_FOCUS', 25)">Start Focus (25m)</button>
-        <button onclick="sendCommand('START_FOCUS', 50)">Start Focus (50m)</button>
-        <button onclick="sendCommand('START_BREAK', 5)">Start Break (5m)</button>
-        <button onclick="sendCommand('STOP_TIMER')">Stop Timer</button>
-        
-        <div class="dropdown-header">Category</div>
-        <div id="categoryList">
-            <button class="category-item" disabled>Loading...</button>
-        </div>
+    <!-- Menu Structure -->
+    <div class="menu-wrapper" id="mainMenu">
+        <ul class="menu">
+            <!-- Focus -->
+            <li class="menu-item">
+                <div class="menu-link">
+                    Focus
+                    <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </div>
+                <ul class="submenu">
+                    <li><div class="menu-link" onclick="sendCommand('START_FOCUS', 25)">25 minutes</div></li>
+                    <li><div class="menu-link" onclick="sendCommand('START_FOCUS', 50)">50 minutes</div></li>
+                </ul>
+            </li>
 
-        <div class="dropdown-header">Widget</div>
-        <button onclick="sendCommand('HIDE_WIDGET')">Hide Widget</button>
+            <!-- Break -->
+            <li class="menu-item">
+                <div class="menu-link">
+                    Break
+                    <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </div>
+                <ul class="submenu">
+                    <li><div class="menu-link" onclick="sendCommand('START_BREAK', 5)">5 minutes</div></li>
+                    <li><div class="menu-link" onclick="sendCommand('START_BREAK', 10)">10 minutes</div></li>
+                </ul>
+            </li>
+
+            <!-- Stop -->
+            <li class="menu-item">
+                <div class="menu-link" onclick="sendCommand('STOP_TIMER')">Stop Timer</div>
+            </li>
+
+            <!-- Category -->
+            <li class="menu-item">
+                <div class="menu-link">
+                    Category
+                    <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </div>
+                <ul class="submenu" id="categoryList">
+                    <!-- Populated via JS -->
+                    <li><div class="menu-link" style="opacity: 0.5; cursor: default;">Loading...</div></li>
+                </ul>
+            </li>
+
+            <!-- Hide Widget -->
+            <li class="menu-item">
+                <div class="menu-link">
+                    Hide Widget
+                    <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </div>
+                <ul class="submenu">
+                    <li><div class="menu-link" onclick="sendCommand('HIDE_WIDGET', 5)">5 minutes</div></li>
+                    <li><div class="menu-link" onclick="sendCommand('HIDE_WIDGET', 15)">15 minutes</div></li>
+                    <li><div class="menu-link" onclick="sendCommand('HIDE_WIDGET', 30)">30 minutes</div></li>
+                    <li><div class="menu-link" onclick="sendCommand('HIDE_WIDGET', 60)">1 hour</div></li>
+                </ul>
+            </li>
+        </ul>
     </div>
 
     <div class="container">
@@ -250,7 +307,7 @@
 
         <!-- Metrics -->
         <div class="metrics">
-            <div class="metric-item clickable" title="Change Category" onclick="toggleMenu(true)">
+            <div class="metric-item">
                 <span class="metric-value" id="currentCategory">None</span>
                 <span class="metric-label">Category</span>
             </div>
@@ -260,7 +317,7 @@
             </div>
         </div>
 
-        <!-- Menu -->
+        <!-- Menu Toggle -->
         <button class="menu-btn" id="menuBtn">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
@@ -289,7 +346,6 @@
         let currentCategories = [];
         let activeCategoryId = '';
 
-        // NEW: Listen to 'timer-update' from Main Process
         window.electron.receive('timer-update', (data) => {
             const { 
                 status, 
@@ -310,13 +366,11 @@
                 timeTextEl.innerText = formatTime(secondsRemaining);
                 ringContainer.style.display = 'flex';
                 
-                // Calculate percentage
                 const percent = ((totalDuration - secondsRemaining) / totalDuration) * 100;
                 setProgress(100 - percent);
                 
                 statusEl.innerText = status === 'PAUSED' ? 'PAUSED' : 'FOCUSING';
             } else {
-                // Idle State - Show Clock
                 mainDisplay.classList.remove('is-focus');
                 const now = new Date();
                 timeTextEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -344,24 +398,26 @@
             const workCats = currentCategories.filter(c => c.type !== 'break');
             
             if (workCats.length === 0) {
-                 list.innerHTML = '<button class="category-item" disabled>No categories</button>';
+                 list.innerHTML = '<li><div class="menu-link" style="opacity: 0.5;">No categories</div></li>';
                  return;
             }
 
             workCats.forEach(cat => {
-                const btn = document.createElement('button');
-                btn.className = `category-item ${cat.id === activeCategoryId ? 'active' : ''}`;
+                const li = document.createElement('li');
+                const div = document.createElement('div');
+                div.className = `menu-link ${cat.id === activeCategoryId ? 'active' : ''}`;
+                div.onclick = () => sendCommand('SET_CATEGORY', cat.id);
                 
-                const svg = `<svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                const svg = `<svg class="category-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
                 
-                btn.innerHTML = `${svg} ${cat.name}`;
-                btn.onclick = () => sendCommand('SET_CATEGORY', cat.id);
-                list.appendChild(btn);
+                div.innerHTML = `${svg} <span>${cat.name}</span>`;
+                li.appendChild(div);
+                list.appendChild(li);
             });
         }
 
         const menuBtn = document.getElementById('menuBtn');
-        const dropdown = document.getElementById('dropdown');
+        const menuWrapper = document.getElementById('mainMenu');
 
         menuBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -369,7 +425,7 @@
         });
 
         document.addEventListener('click', (e) => {
-            if(isMenuOpen && !dropdown.contains(e.target) && !menuBtn.contains(e.target)) {
+            if(isMenuOpen && !menuWrapper.contains(e.target) && !menuBtn.contains(e.target)) {
                 toggleMenu(false);
             }
         });
@@ -377,11 +433,13 @@
         function toggleMenu(open) {
             isMenuOpen = open;
             if (isMenuOpen) {
+                // Resize window to fit menu (approx 5 items * 40px + padding)
+                // Height needs to fit the main menu + potential submenus
                 window.electron.send('widget-resize', { height: 350 });
-                dropdown.classList.add('show');
+                menuWrapper.classList.add('show');
                 menuBtn.classList.add('active');
             } else {
-                dropdown.classList.remove('show');
+                menuWrapper.classList.remove('show');
                 menuBtn.classList.remove('active');
                 window.electron.send('widget-resize', { height: 50 });
             }
@@ -394,7 +452,6 @@
             }
         }
         
-        // Fallback clock interval for Idle state
         setInterval(() => {
             if (!document.getElementById('mainDisplay').classList.contains('is-focus')) {
                  const now = new Date();

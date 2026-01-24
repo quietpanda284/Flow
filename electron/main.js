@@ -29,6 +29,7 @@ let timerState = {
 };
 
 let autoSaveHandle = null;
+let showWidgetTimeout = null;
 
 // --- PERSISTENCE FUNCTIONS ---
 
@@ -345,6 +346,19 @@ ipcMain.on('timer-command', (event, cmd) => {
 ipcMain.on('widget-command', (event, command) => {
     if (command.type === 'HIDE_WIDGET') {
         if (widgetWindow) widgetWindow.hide();
+        
+        // Handle "Hide for X minutes" logic
+        if (command.payload && typeof command.payload === 'number') {
+            if (showWidgetTimeout) clearTimeout(showWidgetTimeout);
+            
+            showWidgetTimeout = setTimeout(() => {
+                if (widgetWindow && !widgetWindow.isDestroyed()) {
+                    widgetWindow.showInactive();
+                    broadcastTimerUpdate();
+                }
+            }, command.payload * 60 * 1000); // payload is in minutes
+        }
+
     } else {
         // Forward timer commands from widget to the logic above
         if (command.type === 'START_FOCUS') startTimer(command.payload, command.payload === 50 ? 'FOCUS_50' : 'FOCUS_25');
@@ -417,6 +431,7 @@ app.on('will-quit', () => {
   saveUserData(); // SAVE
   globalShortcut.unregisterAll();
   if (autoSaveHandle) clearInterval(autoSaveHandle);
+  if (showWidgetTimeout) clearTimeout(showWidgetTimeout);
 });
 
 app.on('window-all-closed', () => {
