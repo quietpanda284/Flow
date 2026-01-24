@@ -9,7 +9,7 @@ export const WindowControls: React.FC = () => {
     };
 
     return (
-        <div className="fixed top-4 right-4 z-[100] flex items-center gap-2 drag-none">
+        <div className="fixed top-2 right-2 z-[100] flex items-center gap-2 drag-none">
              <button 
                 onClick={() => handleControl('minimize')} 
                 className="w-8 h-8 flex items-center justify-center text-gray-400 hover:bg-white/10 hover:text-white rounded-lg transition-colors"
