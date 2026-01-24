@@ -25,7 +25,8 @@ let timerState = {
     
     // Persistent Data
     totalFocusTime: 0, // Total seconds focused lifetime
-    dailyStats: {} // Format: { "YYYY-MM-DD": seconds }
+    dailyStats: {}, // Format: { "YYYY-MM-DD": seconds }
+    lastFocusEndTime: null // Timestamp of when the last FOCUS session ended
 };
 
 let autoSaveHandle = null;
@@ -169,7 +170,8 @@ function broadcastTimerUpdate() {
         mode: timerState.mode,
         activeCategory: timerState.activeCategory,
         availableCategories: timerState.availableCategories,
-        totalFocusTime: timerState.totalFocusTime
+        totalFocusTime: timerState.totalFocusTime,
+        lastFocusEndTime: timerState.lastFocusEndTime
     };
 
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -197,6 +199,11 @@ function stopTimer() {
                 duration: elapsedSeconds / 60
             });
         }
+    }
+
+    // Update last focus time if we were in a focus mode
+    if (timerState.mode.includes('FOCUS')) {
+        timerState.lastFocusEndTime = Date.now();
     }
 
     timerState.status = 'IDLE';
@@ -239,6 +246,10 @@ function startTimer(durationMinutes, mode) {
             timerState.handle = null;
             timerState.status = 'IDLE';
             timerState.secondsRemaining = 0;
+
+            if (timerState.mode.includes('FOCUS')) {
+                timerState.lastFocusEndTime = Date.now();
+            }
             
             saveUserData();
             broadcastTimerUpdate();
@@ -288,6 +299,10 @@ function resumeTimer() {
                  timerState.handle = null;
                  timerState.status = 'IDLE';
                  timerState.secondsRemaining = 0;
+
+                 if (timerState.mode.includes('FOCUS')) {
+                    timerState.lastFocusEndTime = Date.now();
+                 }
                  
                  saveUserData();
                  broadcastTimerUpdate();

@@ -345,6 +345,7 @@
         let isMenuOpen = false;
         let currentCategories = [];
         let activeCategoryId = '';
+        let lastFocusEndTimestamp = null;
 
         window.electron.receive('timer-update', (data) => {
             const { 
@@ -352,8 +353,11 @@
                 secondsRemaining, 
                 totalDuration, 
                 activeCategory, 
-                availableCategories = [] 
+                availableCategories = [],
+                lastFocusEndTime
             } = data;
+
+            lastFocusEndTimestamp = lastFocusEndTime;
 
             const timeTextEl = document.getElementById('timeText');
             const ringContainer = document.getElementById('ringContainer');
@@ -372,10 +376,8 @@
                 statusEl.innerText = status === 'PAUSED' ? 'PAUSED' : 'FOCUSING';
             } else {
                 mainDisplay.classList.remove('is-focus');
-                const now = new Date();
-                timeTextEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
                 ringContainer.style.display = 'none';
-                statusEl.innerText = 'IDLE';
+                updateIdleDisplay();
             }
 
             // 2. Update Category Label
@@ -390,6 +392,25 @@
                 renderCategoryList();
             }
         });
+
+        function updateIdleDisplay() {
+            const timeTextEl = document.getElementById('timeText');
+            const statusEl = document.getElementById('statusText');
+            
+            if (lastFocusEndTimestamp) {
+                const diff = Date.now() - lastFocusEndTimestamp;
+                const totalSeconds = Math.floor(diff / 1000);
+                const h = Math.floor(totalSeconds / 3600);
+                const m = Math.floor((totalSeconds % 3600) / 60);
+                const s = totalSeconds % 60;
+                timeTextEl.innerText = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                statusEl.innerText = 'SINCE FOCUS';
+            } else {
+                const now = new Date();
+                timeTextEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                statusEl.innerText = 'IDLE';
+            }
+        }
 
         function renderCategoryList() {
             const list = document.getElementById('categoryList');
@@ -454,8 +475,7 @@
         
         setInterval(() => {
             if (!document.getElementById('mainDisplay').classList.contains('is-focus')) {
-                 const now = new Date();
-                 document.getElementById('timeText').innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                 updateIdleDisplay();
             }
         }, 1000);
     </script>
