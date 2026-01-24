@@ -75,13 +75,22 @@
             flex: 1;
             border-left: 1px solid #2a2d36;
             padding-left: 14px;
-            overflow: hidden; /* prevent overflow of long category names */
+            overflow: hidden; 
         }
 
         .metric-item {
             display: flex;
             flex-direction: column;
             line-height: 1;
+        }
+        
+        .metric-item.clickable {
+            cursor: pointer;
+            -webkit-app-region: no-drag;
+            transition: opacity 0.2s;
+        }
+        .metric-item.clickable:hover {
+            opacity: 0.8;
         }
         
         .metric-value {
@@ -137,7 +146,6 @@
             overflow-y: auto;
         }
         
-        /* Custom scrollbar for dropdown */
         .dropdown::-webkit-scrollbar { width: 4px; }
         .dropdown::-webkit-scrollbar-track { background: #1a1d24; }
         .dropdown::-webkit-scrollbar-thumb { background: #2a2d36; border-radius: 2px; }
@@ -175,17 +183,28 @@
             background: #1a1d24;
             position: sticky;
             top: 0;
+            z-index: 5;
         }
         
-        /* Category Submenu Item Style */
         .category-item {
             padding-left: 20px !important;
             font-size: 11px !important;
             display: flex;
-            justify-content: space-between;
+            align-items: center;
+            gap: 6px;
         }
         .category-item.active {
             color: #00FF94 !important;
+            background: rgba(0, 255, 148, 0.05);
+        }
+        
+        .check-icon {
+            width: 12px;
+            height: 12px;
+            opacity: 0;
+        }
+        .category-item.active .check-icon {
+            opacity: 1;
         }
         
     </style>
@@ -202,7 +221,6 @@
         
         <div class="dropdown-header">Category</div>
         <div id="categoryList">
-            <!-- Populated via JS -->
             <button class="category-item" disabled>Loading...</button>
         </div>
 
@@ -232,7 +250,7 @@
 
         <!-- Metrics -->
         <div class="metrics">
-            <div class="metric-item">
+            <div class="metric-item clickable" title="Change Category" onclick="toggleMenu(true)">
                 <span class="metric-value" id="currentCategory">None</span>
                 <span class="metric-label">Category</span>
             </div>
@@ -287,7 +305,7 @@
                 totalProductiveMinutes,
                 activeCategoryName,
                 activeCategoryId: newActiveId,
-                availableCategories
+                availableCategories = [] // Default to empty array
             } = data;
 
             const timeTextEl = document.getElementById('timeText');
@@ -313,7 +331,7 @@
             document.getElementById('currentCategory').innerText = activeCategoryName || 'None';
 
             // 3. Update Category List in Menu if changed
-            if (availableCategories && JSON.stringify(availableCategories) !== JSON.stringify(currentCategories) || newActiveId !== activeCategoryId) {
+            if (JSON.stringify(availableCategories) !== JSON.stringify(currentCategories) || newActiveId !== activeCategoryId) {
                 currentCategories = availableCategories;
                 activeCategoryId = newActiveId;
                 renderCategoryList();
@@ -334,7 +352,11 @@
             workCats.forEach(cat => {
                 const btn = document.createElement('button');
                 btn.className = `category-item ${cat.id === activeCategoryId ? 'active' : ''}`;
-                btn.innerText = cat.name;
+                
+                // SVG Check Icon
+                const svg = `<svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                
+                btn.innerHTML = `${svg} ${cat.name}`;
                 btn.onclick = () => sendCommand('SET_CATEGORY', cat.id);
                 list.appendChild(btn);
             });
@@ -369,12 +391,11 @@
 
         function sendCommand(type, payload) {
             window.electron.send('widget-command', { type, payload });
-            if (type !== 'SET_CATEGORY') { // Keep menu open for category switching? No, close it.
+            if (type !== 'SET_CATEGORY') { 
                 toggleMenu(false);
             }
         }
         
-        // Fallback clock tick
         setInterval(() => {
             if (!document.getElementById('mainDisplay').classList.contains('is-focus')) {
                  const now = new Date();

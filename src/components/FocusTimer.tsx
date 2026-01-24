@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Trash2, X, Check, Loader2, Zap, Save, RefreshCw, Maximize2, Minimize2, Monitor } from 'lucide-react';
 import { TimerState, CategoryType, Category, TimeBlock } from '../types';
-import { getCategories, addCategory, deleteCategory, addTimeBlock, getFocusHistory } from '../services/api';
-import { MASTER_CATEGORIES } from '../constants';
+import { addCategory, deleteCategory, addTimeBlock } from '../services/api'; // Removed getCategories
 import { useAuth } from '../context/AuthContext';
 import { getTotalProductiveMinutes } from '../utils/analytics';
 
@@ -28,9 +27,16 @@ const generateUUID = () => {
 interface FocusTimerProps {
     onTimerComplete?: (block?: TimeBlock) => void;
     isDevMode?: boolean;
+    categories: Category[]; // Receive from App
+    onCategoryChange?: () => void; // Trigger refresh in parent
 }
 
-export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMode = false }) => {
+export const FocusTimer: React.FC<FocusTimerProps> = ({ 
+    onTimerComplete, 
+    isDevMode = false,
+    categories,
+    onCategoryChange
+}) => {
   const { user } = useAuth();
   
   // State
@@ -40,10 +46,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   const [todaysProductiveMinutes, setTodaysProductiveMinutes] = useState(0);
   const [lastSavedMessage, setLastSavedMessage] = useState<string | null>(null);
   
-  // Categories
-  const [categories, setCategories] = useState<Category[]>([]);
+  // Active Category State
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryTitle, setNewCategoryTitle] = useState('');
@@ -75,6 +79,18 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   useEffect(() => {
       stateRef.current = { timerState, mode, timeLeft, activeCategory, categories, user };
   }, [timerState, mode, timeLeft, activeCategory, categories, user]);
+
+  // Initialize Active Category when categories load
+  useEffect(() => {
+      if (categories.length > 0) {
+          // If no active category, or current one is not in list, set to first
+          if (!activeCategory || !categories.find(c => c.id === activeCategory.id)) {
+              setActiveCategory(categories[0]);
+          }
+      } else {
+          setActiveCategory(null);
+      }
+  }, [categories]); // Only run when categories prop updates
 
   // Fullscreen Listener
   useEffect(() => {
@@ -180,7 +196,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     const durationMinutes = 25;
     const startDate = new Date(now.getTime() - durationMinutes * 60000);
     
-    // Use current settings or defaults
     let categoryId = 'custom';
     let type: CategoryType = 'focus';
     let title = 'Simulated Focus';
@@ -239,7 +254,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   useEffect(() => {
     if (!(window as any).electron) return;
 
-    // Define handler that uses stateRef
     const handleCommand = (command: any) => {
         console.log("Received widget command:", command);
         const currentState = stateRef.current;
@@ -247,9 +261,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         if (command.type === 'START_FOCUS') {
             const duration = command.payload; 
             const newMode: TimerVariant = duration === 50 ? 'FOCUS_50' : 'FOCUS_25';
-            
-            // If already running same mode, ignore or maybe restart?
-            // Let's restart logic:
             setMode(newMode);
             setLastFocusMode(newMode);
             setTimeLeft(duration * 60);
@@ -258,14 +269,13 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         else if (command.type === 'START_BREAK') {
             const duration = command.payload;
             const newMode: TimerVariant = duration === 10 ? 'BREAK_10' : 'BREAK_5';
-            
             setMode(newMode);
             setLastBreakMode(newMode);
             setTimeLeft(duration * 60);
             setTimerState(TimerState.RUNNING);
         }
         else if (command.type === 'STOP_TIMER') {
-            handleStop(); // Uses ref internally
+            handleStop(); 
         }
         else if (command.type === 'SET_CATEGORY') {
             const catId = command.payload;
@@ -302,40 +312,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     }
   }, [timeLeft, timerState, mode, todaysProductiveMinutes, activeCategory, categories]);
 
-  // --- LOAD DATA ---
-  
-  useEffect(() => {
-    const fetchTodayStats = async () => {
-        if (!user) return;
-        try {
-            const history = await getFocusHistory();
-            const todayStr = new Date().toISOString().split('T')[0];
-            const todayStat = history.find(h => h.date === todayStr);
-            setTodaysProductiveMinutes(todayStat ? todayStat.totalMinutes : 0);
-        } catch (e) { console.error("Stats sync failed"); }
-    };
-    fetchTodayStats();
-    const interval = setInterval(fetchTodayStats, 60000);
-    return () => clearInterval(interval);
-  }, [user]);
-
-  useEffect(() => {
-    const loadCategories = async () => {
-      setIsLoading(true);
-      if (user?.isGuest) {
-          setCategories(MASTER_CATEGORIES);
-          setActiveCategory(MASTER_CATEGORIES[0]);
-          setIsLoading(false);
-          return;
-      }
-      const fetchedCats = await getCategories();
-      setCategories(fetchedCats);
-      if (fetchedCats.length > 0 && !activeCategory) setActiveCategory(fetchedCats[0]);
-      setIsLoading(false);
-    };
-    loadCategories();
-  }, [user]);
-
   // --- TIMER TICK ---
 
   useEffect(() => {
@@ -357,7 +333,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [timerState]); // Minimal dependencies
+  }, [timerState]); 
 
   // --- UI HANDLERS ---
 
@@ -385,10 +361,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       setTimeLeft(MODES[newMode].minutes * 60);
   };
 
-  const handleStart = () => setTimerState(TimerState.RUNNING);
-  
   const handleMainAction = () => {
-      if (timerState === TimerState.IDLE) handleStart();
+      if (timerState === TimerState.IDLE) setTimerState(TimerState.RUNNING);
       else handleStop();
   };
 
@@ -397,7 +371,35 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       else if (timerState === TimerState.PAUSED) setTimerState(TimerState.RUNNING);
   };
 
-  // --- RENDER ---
+  const handleAddCategory = async () => {
+    if (newCategoryTitle.trim()) {
+        const titleToAdd = newCategoryTitle.trim();
+        const typeToAdd = newCategoryType;
+        
+        try {
+            if (user?.isGuest) {
+                // Mock local addition
+            } else {
+                await addCategory(titleToAdd, typeToAdd);
+            }
+            if (onCategoryChange) onCategoryChange();
+            setNewCategoryTitle('');
+            setIsAddingCategory(false);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+  };
+
+  const handleDeleteCategory = async (cat: Category) => {
+      try {
+          if (!user?.isGuest) {
+              await deleteCategory(cat.id);
+          }
+          if (onCategoryChange) onCategoryChange();
+      } catch (e) { console.error(e); }
+  };
+
   const CurrentIcon = MODES[mode].icon;
 
   const handleToggleWidget = () => {
@@ -441,19 +443,19 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
                 <div className="relative flex-1">
                     <button 
                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        disabled={isLoading || isTimerActive}
+                        disabled={isTimerActive}
                         className={`w-full bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg p-3 flex justify-between items-center text-white transition-colors group disabled:opacity-70 ${isTimerActive ? 'cursor-not-allowed opacity-50' : ''}`}
                     >
-                         {isLoading ? (
-                             <div className="flex items-center gap-2"><Loader2 className="animate-spin" size={16} /><span className="font-medium text-gray-400">Loading...</span></div>
-                         ) : (
+                         {activeCategory ? (
                              <>
-                                <span className="font-medium truncate">{activeCategory?.name || "Select a category"}</span>
+                                <span className="font-medium truncate">{activeCategory.name}</span>
                                 <ChevronDown size={16} className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                              </>
+                         ) : (
+                             <div className="flex items-center gap-2"><Loader2 className="animate-spin" size={16} /><span className="font-medium text-gray-400">Loading...</span></div>
                          )}
                     </button>
-                    {isDropdownOpen && !isLoading && !isTimerActive && (
+                    {isDropdownOpen && !isTimerActive && (
                         <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-xl shadow-xl overflow-hidden z-50">
                             <div className="max-h-48 overflow-y-auto custom-scrollbar">
                                 {categories.map(cat => (
@@ -463,6 +465,15 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
                         </div>
                     )}
                 </div>
+                
+                <button 
+                    onClick={() => { setIsAddingCategory(true); setIsDropdownOpen(false); setNewCategoryTitle(''); setNewCategoryType('focus'); }}
+                    disabled={isTimerActive}
+                    className={`bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg px-3 flex items-center justify-center text-gray-400 hover:text-accent-focus transition-colors ${isTimerActive ? 'cursor-not-allowed opacity-50' : ''}`}
+                    title="Add new category"
+                >
+                    <Plus size={20} />
+                </button>
             </div>
       </div>
 
@@ -479,7 +490,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
          </button>
       </div>
       
-       {/* Dev Mode Sim Button */}
        {isDevMode && <button onClick={handleSimulateSession} className="absolute bottom-4 left-4 z-50 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 text-xs font-mono rounded hover:bg-yellow-500/20 transition-colors flex items-center gap-2"><Zap size={12} /> DEV: SIM 25M</button>}
     </div>
   );
