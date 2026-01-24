@@ -8,6 +8,7 @@ const __dirname = path.dirname(__filename);
 
 let mainWindow;
 let widgetWindow;
+let lastAppState = null; // Cache to ensure widget gets data on startup
 
 function createWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -45,15 +46,26 @@ function createWindow() {
 }
 
 function createWidgetWindow() {
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+  const widgetWidth = 320;
+  const widgetHeight = 50;
+
+  // Position at bottom right with some padding
+  const xPos = width - widgetWidth - 24;
+  const yPos = height - widgetHeight - 24;
+
   widgetWindow = new BrowserWindow({
-    width: 320,
-    height: 50, // Compact height
+    width: widgetWidth,
+    height: widgetHeight,
+    x: xPos,
+    y: yPos,
     frame: false, // Frameless
     resizable: false, // Keep size fixed
     alwaysOnTop: true,
     transparent: true, // Allow rounded corners if needed via CSS
     skipTaskbar: true, // Don't show in dock/taskbar
     backgroundColor: '#00000000', // Transparent bg for CSS control
+    hasShadow: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -65,14 +77,21 @@ function createWidgetWindow() {
   // Load the separate widget HTML file
   widgetWindow.loadFile(path.join(__dirname, 'widget.html'));
 
-  // Default to hidden
-  widgetWindow.hide(); 
+  widgetWindow.once('ready-to-show', () => {
+    widgetWindow.showInactive(); // Show without taking focus from main window
+    
+    // Immediate sync if data exists
+    if (lastAppState) {
+        widgetWindow.webContents.send('widget-update', lastAppState);
+    }
+  });
 }
 
 // --- IPC COMMUNICATION ---
 
 // 1. React App sends state updates (Time, Timer Status) -> Main -> Widget
 ipcMain.on('app-state-update', (event, data) => {
+  lastAppState = data; // Cache it
   if (widgetWindow && !widgetWindow.isDestroyed()) {
     widgetWindow.webContents.send('widget-update', data);
   }
@@ -84,11 +103,14 @@ ipcMain.on('widget-command', (event, command) => {
      // Handle visual hiding directly in main process
      if (widgetWindow) {
          widgetWindow.hide();
-         // Optional: Auto-show logic could be added here using setTimeout
-         if (command.durationMinutes) {
-             setTimeout(() => {
-                 if(widgetWindow && !widgetWindow.isDestroyed()) widgetWindow.show();
-             }, command.durationMinutes * 60 * 1000);
+         // Auto-show logic
+         if (command.payload) { // Payload acts as minutes in this context
+             const minutes = typeof command.payload === 'number' ? command.payload : 0;
+             if (minutes > 0) {
+                 setTimeout(() => {
+                     if(widgetWindow && !widgetWindow.isDestroyed()) widgetWindow.showInactive();
+                 }, minutes * 60 * 1000);
+             }
          }
      }
   } else {
@@ -103,7 +125,14 @@ ipcMain.on('widget-command', (event, command) => {
 ipcMain.on('toggle-widget', () => {
     if (widgetWindow) {
         if (widgetWindow.isVisible()) widgetWindow.hide();
-        else widgetWindow.show();
+        else {
+            widgetWindow.showInactive();
+            if (lastAppState) {
+                widgetWindow.webContents.send('widget-update', lastAppState);
+            }
+        }
+    } else {
+        createWidgetWindow();
     }
 });
 
