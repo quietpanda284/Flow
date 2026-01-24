@@ -402,7 +402,7 @@ ipcMain.on('toggle-widget', () => {
     }
 });
 
-ipcMain.on('widget-resize', (event, { width, height }) => {
+ipcMain.on('widget-resize', (event, { width, height, align }) => {
     if (!widgetWindow || widgetWindow.isDestroyed()) return;
     const bounds = widgetWindow.getBounds();
     const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize;
@@ -422,9 +422,15 @@ ipcMain.on('widget-resize', (event, { width, height }) => {
     // Handle Height Resize
     if (height && height !== bounds.height) {
         newHeight = height;
-        // Keep bottom alignment
-        const bottomY = bounds.y + bounds.height;
-        newY = bottomY - newHeight;
+        
+        if (align === 'top') {
+            // Keep top Y constant, let it grow downwards
+            newY = bounds.y;
+        } else {
+            // Default: Keep bottom alignment (grows upwards)
+            const bottomY = bounds.y + bounds.height;
+            newY = bottomY - newHeight;
+        }
     }
 
     widgetWindow.setBounds({

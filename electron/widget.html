@@ -18,15 +18,16 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            justify-content: flex-end; 
-            align-items: flex-end; /* Align right */
+            /* Align to top for downward menu expansion */
+            justify-content: flex-start; 
+            align-items: flex-end; 
         }
 
         .container {
             background: #0f1117;
             border-radius: 8px;
             border: 1px solid #2a2d36;
-            display: inline-flex; /* Use inline flex to fit content */
+            display: inline-flex; 
             align-items: center;
             min-width: 320px;
             padding: 0 12px;
@@ -36,6 +37,35 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             position: relative;
             z-index: 20;
+            
+            /* DELAYED REAPPEARANCE (2 seconds) */
+            transition: background 0.2s ease-in 2s, border-color 0.2s ease-in 2s, box-shadow 0.2s ease-in 2s;
+        }
+
+        /* HIDE ON HOVER (Immediate) */
+        /* Only hide if menu is NOT open */
+        body:not(.menu-active) .container:hover {
+            background: rgba(15, 17, 23, 0.0); /* Fully transparent background */
+            border-color: rgba(42, 45, 54, 0.0);
+            box-shadow: none;
+            /* Override delay to hide immediately */
+            transition-delay: 0s; 
+        }
+
+        /* Wrapper for content to fade out */
+        .content-wrapper {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            /* DELAYED REAPPEARANCE (2 seconds) */
+            opacity: 1;
+            transition: opacity 0.2s ease-in 2s;
+        }
+
+        /* Hide content on hover immediately */
+        body:not(.menu-active) .container:hover .content-wrapper {
+            opacity: 0;
+            transition-delay: 0s;
         }
 
         .primary-display {
@@ -90,7 +120,6 @@
             font-weight: 600;
             color: #4D96FF; 
             white-space: nowrap;
-            /* Remove max-width and ellipsis to allow expansion */
         }
         .metric-label {
             font-size: 9px;
@@ -113,16 +142,24 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            /* Ensure button stays visible even when container fades */
+            opacity: 1 !important; 
         }
         .menu-btn:hover, .menu-btn.active {
             color: white;
             background: rgba(255,255,255,0.1);
         }
+        /* If the container is hidden, make the button slightly more visible against the desktop */
+        body:not(.menu-active) .container:hover .menu-btn {
+             background: rgba(0,0,0,0.5);
+             color: white;
+        }
 
         /* NESTED MENU STYLES */
         .menu-wrapper {
             position: absolute;
-            bottom: 60px;
+            /* Changed to Top for Downward expansion */
+            top: 55px; 
             right: 0;
             display: none;
             -webkit-app-region: no-drag;
@@ -166,13 +203,11 @@
             color: white;
         }
         
-        /* Highlight active parent items */
         .menu-item.active > .menu-link {
             background: #2a2d36;
             color: white;
         }
 
-        /* Arrow Icon for Items with Submenu */
         .arrow {
             width: 12px;
             height: 12px;
@@ -189,9 +224,9 @@
         .submenu {
             display: none;
             position: absolute;
-            right: 100%; /* Position to the left of the parent */
+            right: 100%; 
             top: 0;
-            margin-right: 4px; /* Slight gap */
+            margin-right: 4px; 
             background: #1a1d24;
             border: 1px solid #2a2d36;
             border-radius: 8px;
@@ -204,12 +239,10 @@
             overflow-y: auto;
         }
 
-        /* Show Submenu when Active (Clicked) */
         .menu-item.active > .submenu {
             display: block;
         }
 
-        /* Submenu specific tweaks */
         .submenu .menu-link {
             padding: 8px 12px;
         }
@@ -274,7 +307,6 @@
                     <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                 </div>
                 <ul class="submenu" id="categoryList">
-                    <!-- Populated via JS -->
                     <li><div class="menu-link" style="opacity: 0.5; cursor: default;">Loading...</div></li>
                 </ul>
             </li>
@@ -296,38 +328,41 @@
     </div>
 
     <div class="container" id="widgetContainer">
-        <!-- Timer -->
-        <div class="primary-display" id="mainDisplay">
-            <div class="ring-container" id="ringContainer">
-               <svg class="progress-ring" width="22" height="22">
-                  <circle
-                    class="progress-ring__circle"
-                    stroke="#00FF94"
-                    stroke-width="2.5"
-                    fill="transparent"
-                    r="8"
-                    cx="11"
-                    cy="11"
-                    id="timerCircle"
-                  />
-                </svg>
+        <!-- WRAPPED CONTENT to allow hiding everything except menu button -->
+        <div class="content-wrapper">
+            <!-- Timer -->
+            <div class="primary-display" id="mainDisplay">
+                <div class="ring-container" id="ringContainer">
+                <svg class="progress-ring" width="22" height="22">
+                    <circle
+                        class="progress-ring__circle"
+                        stroke="#00FF94"
+                        stroke-width="2.5"
+                        fill="transparent"
+                        r="8"
+                        cx="11"
+                        cy="11"
+                        id="timerCircle"
+                    />
+                    </svg>
+                </div>
+                <span class="time-text" id="timeText">12:00</span>
             </div>
-            <span class="time-text" id="timeText">12:00</span>
+
+            <!-- Metrics -->
+            <div class="metrics">
+                <div class="metric-item">
+                    <span class="metric-value" id="statusText">IDLE</span>
+                    <span class="metric-label">Status</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-value" id="currentCategory">None</span>
+                    <span class="metric-label">Category</span>
+                </div>
+            </div>
         </div>
 
-        <!-- Metrics (Swapped: Status first, Category second) -->
-        <div class="metrics">
-            <div class="metric-item">
-                <span class="metric-value" id="statusText">IDLE</span>
-                <span class="metric-label">Status</span>
-            </div>
-            <div class="metric-item">
-                <span class="metric-value" id="currentCategory">None</span>
-                <span class="metric-label">Category</span>
-            </div>
-        </div>
-
-        <!-- Menu Toggle -->
+        <!-- Menu Toggle (Outside content-wrapper so it stays visible) -->
         <button class="menu-btn" id="menuBtn">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
@@ -375,7 +410,6 @@
             const mainDisplay = document.getElementById('mainDisplay');
             const statusEl = document.getElementById('statusText');
 
-            // 1. Update Timer Display
             if (status === 'RUNNING' || status === 'PAUSED') {
                 mainDisplay.classList.add('is-focus');
                 timeTextEl.innerText = formatTime(secondsRemaining);
@@ -391,11 +425,9 @@
                 updateIdleDisplay();
             }
 
-            // 2. Update Category Label
             const catName = activeCategory ? activeCategory.name : 'None';
             document.getElementById('currentCategory').innerText = catName;
 
-            // 3. Update Category Menu if list changed
             const newActiveId = activeCategory ? activeCategory.id : '';
             if (JSON.stringify(availableCategories) !== JSON.stringify(currentCategories) || newActiveId !== activeCategoryId) {
                 currentCategories = availableCategories;
@@ -403,17 +435,13 @@
                 renderCategoryList();
             }
 
-            // 4. Update Window Size based on content
             requestAnimationFrame(updateWindowSize);
         });
 
         function updateWindowSize() {
             const container = document.getElementById('widgetContainer');
-            // Add a small buffer for shadow/margin safety if needed, or use exact
             const width = container.offsetWidth; 
             
-            // Only update if width changed significantly to avoid jitter, 
-            // but for exact text fitting, we update if diff > 1px
             if (Math.abs(width - lastSentWidth) > 1) {
                 lastSentWidth = width;
                 window.electron.send('widget-resize', { width: width });
@@ -477,7 +505,6 @@
             }
         });
 
-        // New function to handle submenu toggling
         function toggleSubmenu(e) {
             e.stopPropagation();
             const link = e.currentTarget;
@@ -485,12 +512,10 @@
             
             const isActive = menuItem.classList.contains('active');
             
-            // Close all other submenus
             document.querySelectorAll('.menu-item.active').forEach(item => {
                 if (item !== menuItem) item.classList.remove('active');
             });
 
-            // Toggle current
             if (isActive) {
                 menuItem.classList.remove('active');
             } else {
@@ -501,17 +526,21 @@
         function toggleMenu(open) {
             isMenuOpen = open;
             if (isMenuOpen) {
-                // Resize window to fit menu (approx 5 items * 40px + padding)
-                // Height needs to fit the main menu + potential submenus
-                window.electron.send('widget-resize', { height: 350 });
+                // Resize for Downward Menu. 
+                // send 'align: top' to keep the Y position (widget bar) constant and expand downwards.
+                window.electron.send('widget-resize', { height: 350, align: 'top' });
+                
                 menuWrapper.classList.add('show');
                 menuBtn.classList.add('active');
+                document.body.classList.add('menu-active');
             } else {
                 menuWrapper.classList.remove('show');
                 menuBtn.classList.remove('active');
-                window.electron.send('widget-resize', { height: 50 });
+                document.body.classList.remove('menu-active');
                 
-                // Reset all submenus when main menu closes
+                // Return to small bar. 
+                window.electron.send('widget-resize', { height: 50, align: 'top' });
+                
                 document.querySelectorAll('.menu-item.active').forEach(el => el.classList.remove('active'));
             }
         }
