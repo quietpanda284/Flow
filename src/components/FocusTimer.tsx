@@ -37,7 +37,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   const [mode, setMode] = useState<TimerVariant>('FOCUS_25');
   const [timeLeft, setTimeLeft] = useState(MODES.FOCUS_25.minutes * 60);
   
-  // Memory State: Remembers the last used duration for each type
+  // Memory State
   const [lastFocusMode, setLastFocusMode] = useState<TimerVariant>('FOCUS_25');
   const [lastBreakMode, setLastBreakMode] = useState<TimerVariant>('BREAK_5');
 
@@ -47,7 +47,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   // Feedback State
   const [lastSavedMessage, setLastSavedMessage] = useState<string | null>(null);
 
-  // Category Management State
+  // Category State
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
@@ -65,126 +65,17 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   const isFocus = mode.startsWith('FOCUS');
   const isTimerActive = timerState !== TimerState.IDLE;
 
-  // --- WIDGET INTEGRATION START ---
+  // --- HELPER FUNCTIONS (Hoisted for use in Effects) ---
 
-  // 1. Listen for Commands from Widget (Main -> Renderer)
-  useEffect(() => {
-    if ((window as any).electron) {
-        (window as any).electron.receive('app-command', (command: any) => {
-            console.log("Received widget command:", command);
-            
-            if (command.type === 'START_FOCUS') {
-                const duration = command.payload; // 25 or 50
-                // Switch tab if needed
-                if (!mode.startsWith('FOCUS')) switchTab('FOCUS');
-                // Set correct duration
-                const newMode: TimerVariant = duration === 50 ? 'FOCUS_50' : 'FOCUS_25';
-                setMode(newMode);
-                setLastFocusMode(newMode);
-                setTimeLeft(duration * 60);
-                setTimerState(TimerState.RUNNING);
-            }
-            else if (command.type === 'START_BREAK') {
-                const duration = command.payload;
-                if (mode.startsWith('FOCUS')) switchTab('BREAK');
-                const newMode: TimerVariant = duration === 10 ? 'BREAK_10' : 'BREAK_5';
-                setMode(newMode);
-                setLastBreakMode(newMode);
-                setTimeLeft(duration * 60);
-                setTimerState(TimerState.RUNNING);
-            }
-            else if (command.type === 'STOP_TIMER') {
-                handleStop();
-            }
-        });
-    }
-  }, [mode, timerState]); // Deps allow immediate access to current state logic
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
-  // 2. Send Updates to Widget (Renderer -> Main)
-  useEffect(() => {
-    if ((window as any).electron) {
-        const payload = {
-            timerState,
-            timeLeft,
-            totalDuration: MODES[mode].minutes,
-            totalProductiveMinutes: todaysProductiveMinutes,
-        };
-        (window as any).electron.send('app-state-update', payload);
-    }
-  }, [timeLeft, timerState, mode, todaysProductiveMinutes]);
-
-  // Fetch today's stats for widget sync
-  useEffect(() => {
-    const fetchTodayStats = async () => {
-        if (!user) return;
-        try {
-            const history = await getFocusHistory();
-            // Assuming history returns aggregated daily stats, find today
-            // Note: In a real app we might need a more specific endpoint, but we can reuse logic
-            // For now, let's just use what we have or placeholder.
-            // Actually, we can fetch 'actualBlocks' for today and sum them.
-            // But getFocusHistory returns {date, totalMinutes}.
-            const todayStr = new Date().toISOString().split('T')[0]; // UTC based, simplest approx
-            const todayStat = history.find(h => h.date === todayStr);
-            setTodaysProductiveMinutes(todayStat ? todayStat.totalMinutes : 0);
-        } catch (e) {
-            console.error("Failed to sync widget stats");
-        }
-    };
-    fetchTodayStats();
-    // Refresh every minute
-    const interval = setInterval(fetchTodayStats, 60000);
-    return () => clearInterval(interval);
-  }, [user]);
-
-  // --- WIDGET INTEGRATION END ---
-
-  // Initial Data Fetch
-  useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      if (user?.isGuest) {
-          setCategories(MASTER_CATEGORIES);
-          setActiveCategory(MASTER_CATEGORIES[0]);
-          setIsLoading(false);
-          return;
-      }
-      const fetchedCats = await getCategories();
-      setCategories(fetchedCats);
-      if (fetchedCats.length > 0) setActiveCategory(fetchedCats[0]);
-      setIsLoading(false);
-    };
-    loadData();
-  }, [user]);
-
-  // Update Document Title
-  useEffect(() => {
-    if (timerState === TimerState.RUNNING) {
-      document.title = `${formatTime(timeLeft)} - ${isFocus ? 'Focus' : 'Break'}`;
-    } else {
-      document.title = 'Flow';
-    }
-  }, [timeLeft, timerState, isFocus]);
-
-  // Fullscreen Listener
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-        setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-        fullScreenRef.current?.requestFullscreen().catch((err) => {
-             console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-        });
-    } else {
-        if (document.exitFullscreen) {
-            document.exitFullscreen();
-        }
-    }
+  const showFeedback = (msg: string) => {
+      setLastSavedMessage(msg);
+      setTimeout(() => setLastSavedMessage(null), 3000);
   };
 
   const getCurrentTimeStr = (date: Date) => {
@@ -197,11 +88,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       return localDate.toISOString().split('T')[0];
   };
 
-  const showFeedback = (msg: string) => {
-      setLastSavedMessage(msg);
-      setTimeout(() => setLastSavedMessage(null), 3000);
-  };
-
   const saveSession = async (actualMinutes?: number) => {
     const now = new Date();
     const rawMinutes = actualMinutes ?? MODES[mode].minutes;
@@ -210,9 +96,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     if (durationMinutes < 1) return;
 
     const startDate = new Date(now.getTime() - durationMinutes * 60000);
-    const startTimeStr = getCurrentTimeStr(startDate);
-    const endTimeStr = getCurrentTimeStr(now);
-
+    
+    // Determine props
     let categoryId = 'custom';
     let type: CategoryType = isFocus ? 'focus' : 'break';
     let title = MODES[mode].label;
@@ -227,8 +112,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         id: generateUUID(),
         title: title,
         app: 'Timer',
-        startTime: startTimeStr,
-        endTime: endTimeStr,
+        startTime: getCurrentTimeStr(startDate),
+        endTime: getCurrentTimeStr(now),
         durationMinutes: durationMinutes,
         type: type,
         categoryId: categoryId,
@@ -256,8 +141,138 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     }
   };
 
+  const handleStop = () => {
+    const totalSeconds = MODES[mode].minutes * 60;
+    const elapsedSeconds = totalSeconds - timeLeft;
+    
+    setTimerState(TimerState.IDLE);
+    setTimeLeft(MODES[mode].minutes * 60);
+
+    if (elapsedSeconds >= 59) {
+        const minutes = elapsedSeconds / 60;
+        saveSession(minutes);
+    }
+  };
+
+  // --- WIDGET INTEGRATION ---
+
+  // 1. Listen for Commands from Widget
+  useEffect(() => {
+    if ((window as any).electron) {
+        const listenerId = (window as any).electron.receive('app-command', (command: any) => {
+            console.log("Received widget command:", command);
+            
+            if (command.type === 'START_FOCUS') {
+                const duration = command.payload; 
+                const newMode: TimerVariant = duration === 50 ? 'FOCUS_50' : 'FOCUS_25';
+                
+                setMode(newMode);
+                setLastFocusMode(newMode);
+                setTimeLeft(duration * 60);
+                setTimerState(TimerState.RUNNING);
+            }
+            else if (command.type === 'START_BREAK') {
+                const duration = command.payload;
+                const newMode: TimerVariant = duration === 10 ? 'BREAK_10' : 'BREAK_5';
+                
+                setMode(newMode);
+                setLastBreakMode(newMode);
+                setTimeLeft(duration * 60);
+                setTimerState(TimerState.RUNNING);
+            }
+            else if (command.type === 'STOP_TIMER') {
+                handleStop();
+            }
+        });
+
+        // Cleanup function to remove listener when component unmounts or deps change
+        return () => {
+            if ((window as any).electron.removeListener) {
+                (window as any).electron.removeListener(listenerId);
+            }
+        };
+    }
+  }, [mode, timerState, timeLeft, activeCategory]); // Re-bind when state changes to ensure closure captures latest state
+
+  // 2. Send Updates to Widget
+  useEffect(() => {
+    if ((window as any).electron) {
+        const payload = {
+            timerState,
+            timeLeft,
+            totalDuration: MODES[mode].minutes,
+            totalProductiveMinutes: todaysProductiveMinutes,
+        };
+        (window as any).electron.send('app-state-update', payload);
+    }
+  }, [timeLeft, timerState, mode, todaysProductiveMinutes]);
+
+  // Sync Stats
+  useEffect(() => {
+    const fetchTodayStats = async () => {
+        if (!user) return;
+        try {
+            const history = await getFocusHistory();
+            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStat = history.find(h => h.date === todayStr);
+            setTodaysProductiveMinutes(todayStat ? todayStat.totalMinutes : 0);
+        } catch (e) {
+            console.error("Failed to sync widget stats");
+        }
+    };
+    fetchTodayStats();
+    const interval = setInterval(fetchTodayStats, 60000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // --- CORE LOGIC ---
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      if (user?.isGuest) {
+          setCategories(MASTER_CATEGORIES);
+          setActiveCategory(MASTER_CATEGORIES[0]);
+          setIsLoading(false);
+          return;
+      }
+      const fetchedCats = await getCategories();
+      setCategories(fetchedCats);
+      if (fetchedCats.length > 0) setActiveCategory(fetchedCats[0]);
+      setIsLoading(false);
+    };
+    loadData();
+  }, [user]);
+
+  useEffect(() => {
+    if (timerState === TimerState.RUNNING) {
+      document.title = `${formatTime(timeLeft)} - ${isFocus ? 'Focus' : 'Break'}`;
+    } else {
+      document.title = 'Flow';
+    }
+  }, [timeLeft, timerState, isFocus]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+        setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+        fullScreenRef.current?.requestFullscreen().catch((err) => {
+             console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+        });
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    }
+  };
+
   const handleSimulateSession = async () => {
-    // ... same as before
     const now = new Date();
     const durationMinutes = 25;
     const startDate = new Date(now.getTime() - durationMinutes * 60000);
@@ -354,27 +369,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       setTimeLeft(MODES[newMode].minutes * 60);
   };
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
   const handleStart = () => setTimerState(TimerState.RUNNING);
   
-  const handleStop = () => {
-    const totalSeconds = MODES[mode].minutes * 60;
-    const elapsedSeconds = totalSeconds - timeLeft;
-    
-    setTimerState(TimerState.IDLE);
-    setTimeLeft(MODES[mode].minutes * 60);
-
-    if (elapsedSeconds >= 59) {
-        const minutes = elapsedSeconds / 60;
-        saveSession(minutes);
-    }
-  };
-
   const handleMainAction = () => {
       if (timerState === TimerState.IDLE) {
           handleStart();
@@ -391,8 +387,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       }
   };
 
-  // Category Logic (Add/Delete/Select) - kept same as original, omitted for brevity but included in output if needed.
-  // ... (Existing category handlers here) ...
   const handleAddCategory = async () => {
     if (newCategoryTitle.trim()) {
         const titleToAdd = newCategoryTitle.trim();
@@ -433,6 +427,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       await deleteCategory(catToDelete.id);
       const updatedCats = categories.filter(c => c.id !== catToDelete.id);
       setCategories(updatedCats);
+      
       if (activeCategory?.id === catToDelete.id) {
           setActiveCategory(updatedCats.length > 0 ? updatedCats[0] : null);
       }
@@ -454,12 +449,9 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         ref={fullScreenRef}
         className="bg-card border border-border rounded-xl p-8 flex flex-col h-full max-w-2xl mx-auto relative shadow-2xl overflow-y-auto custom-scrollbar"
     >
-        {/* Background Glow */}
       <div className={`absolute -top-32 -right-32 w-64 h-64 rounded-full blur-[100px] opacity-20 transition-all duration-700 pointer-events-none ${isFocus ? 'bg-accent-focus' : 'bg-accent-break'} ${timerState === TimerState.RUNNING ? 'scale-125 opacity-30' : ''}`} />
 
-      {/* Widget Toggle & Full Screen */}
       <div className="absolute top-6 right-6 z-40 flex gap-2">
-           {/* Widget Button */}
            <button 
                 onClick={handleToggleWidget}
                 className="text-gray-500 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5"
@@ -477,7 +469,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
             </button>
       </div>
 
-      {/* Feedback Toast */}
       <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${lastSavedMessage ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
           <div className="bg-accent-focus/10 border border-accent-focus/30 text-accent-focus px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg backdrop-blur-md">
               <Save size={14} />
@@ -485,7 +476,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
           </div>
       </div>
 
-      {/* Header & Mode Selector */}
       <div className="flex flex-col items-center mb-8 z-10 relative mt-4">
         <div className="flex p-1 bg-[#0f1117] rounded-lg border border-[#2a2d36] mb-6">
             <button
@@ -512,7 +502,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
             </button>
         </div>
         
-        {/* Toggleable Pill */}
         <button 
             onClick={toggleDuration}
             disabled={isTimerActive}
@@ -527,7 +516,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         </button>
       </div>
 
-      {/* Category Selector (Same as before) */}
       <div className={`relative mb-8 z-30 transition-all duration-300 ${isFocus && !isTimerActive ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none h-0 mb-0'}`}>
         <label className={`text-xs text-gray-500 mb-1 block uppercase tracking-wider text-center ${isTimerActive ? 'opacity-50' : ''}`}>Current Category</label>
         
@@ -626,7 +614,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         )}
       </div>
 
-      {/* Timer Display */}
       <div 
         onClick={toggleTimerPause}
         className={`flex-1 flex flex-col items-center justify-center mb-8 z-10 min-h-[120px] shrink-0 relative group ${timerState !== TimerState.IDLE ? 'cursor-pointer' : ''}`}
@@ -644,7 +631,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         </p>
       </div>
 
-      {/* Controls */}
       <div className="flex justify-center w-full z-40 mt-auto relative">
          <button 
             onClick={handleMainAction}
@@ -662,7 +648,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
          </button>
       </div>
 
-      {/* Dev Mode Simulation */}
       {isDevMode && (
         <button 
             onClick={handleSimulateSession}
