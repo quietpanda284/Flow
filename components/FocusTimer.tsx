@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Save, RefreshCw, Maximize2, Minimize2, Monitor, Loader2, Zap, X, Check, Edit2, Trash2 } from 'lucide-react';
+import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Save, RefreshCw, Maximize2, Minimize2, Monitor, Loader2, Zap, X, Check, Edit2, Trash2, AlertTriangle } from 'lucide-react';
 import { TimerState, CategoryType, Category, TimeBlock } from '../types';
 import { addCategory, deleteCategory, updateCategory, addTimeBlock } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -55,6 +55,9 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
   // Category Editing UI
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+
+  // Delete Confirmation UI
+  const [deleteConfirmationId, setDeleteConfirmationId] = useState<string | null>(null);
 
   // View State
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -265,17 +268,23 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
     }
   };
 
-  const handleDeleteCategory = async (id: string) => {
-      if (confirm('Are you sure you want to delete this category?')) {
-          try {
-              await deleteCategory(id);
-              if (activeCategory?.id === id) {
-                  setActiveCategory(null); // Clear optimistic
-                  sendCommand('SET_CATEGORY', null); 
-              }
-              if (onCategoryChange) onCategoryChange();
-          } catch(e) { console.error(e); }
-      }
+  const handleDeleteCategory = (id: string) => {
+      setDeleteConfirmationId(id);
+  };
+
+  const executeDeleteCategory = async () => {
+      if (!deleteConfirmationId) return;
+      
+      try {
+          await deleteCategory(deleteConfirmationId);
+          if (activeCategory?.id === deleteConfirmationId) {
+              setActiveCategory(null); // Clear optimistic
+              sendCommand('SET_CATEGORY', null); 
+          }
+          if (onCategoryChange) onCategoryChange();
+      } catch(e) { console.error(e); }
+      
+      setDeleteConfirmationId(null);
   };
 
   const handleEditCategory = async () => {
@@ -466,6 +475,41 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
       </div>
       
        {isDevMode && <button onClick={() => sendCommand('START', { minutes: 0.1, mode })} className="absolute bottom-4 left-4 z-50 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 text-xs font-mono rounded hover:bg-yellow-500/20 transition-colors flex items-center gap-2"><Zap size={12} /> DEV: TEST COMPLETE</button>}
+
+       {/* Delete Confirmation Modal */}
+       {deleteConfirmationId && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                <div className="bg-[#1a1d24] border border-[#2a2d36] rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-3 rounded-full bg-red-500/10 text-red-500 shrink-0">
+                                <AlertTriangle size={24} />
+                            </div>
+                            <h3 className="text-xl font-bold text-white">Delete Category?</h3>
+                        </div>
+                        
+                        <p className="text-gray-400 mb-6 text-sm leading-relaxed">
+                            Are you sure you want to delete this category? This action cannot be undone.
+                        </p>
+
+                        <div className="flex gap-3 justify-end">
+                            <button 
+                                onClick={() => setDeleteConfirmationId(null)}
+                                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={executeDeleteCategory}
+                                className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-red-600 hover:bg-red-700 transition-colors shadow-lg flex items-center gap-2"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+       )}
     </div>
   );
 };
