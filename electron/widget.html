@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -378,18 +379,21 @@
         let lastFocusEndTimestamp = null;
         let lastSentWidth = 0;
 
+        // --- OPTIMIZED IPC LISTENER ---
         window.electron.receive('timer-update', (data) => {
             const { 
                 status, 
                 secondsRemaining, 
                 totalDuration, 
                 activeCategory, 
-                availableCategories = [],
+                // AvailableCategories might be undefined if main process hasn't sent an update
+                availableCategories, 
                 lastFocusEndTime
             } = data;
 
             lastFocusEndTimestamp = lastFocusEndTime;
 
+            // 1. UPDATE TIMER (Lightweight - always safe)
             const timeTextEl = document.getElementById('timeText');
             const ringContainer = document.getElementById('ringContainer');
             const mainDisplay = document.getElementById('mainDisplay');
@@ -410,13 +414,25 @@
                 updateIdleDisplay();
             }
 
-            const catName = activeCategory ? activeCategory.name : 'None';
-            document.getElementById('currentCategory').innerText = catName;
+            // 2. UPDATE LABELS
+            // If activeCategory was included in payload, update it.
+            // Main process only sends activeCategory if changed, or on force update.
+            if (activeCategory !== undefined) {
+                const catName = activeCategory ? activeCategory.name : 'None';
+                document.getElementById('currentCategory').innerText = catName;
+                activeCategoryId = activeCategory ? activeCategory.id : '';
+                
+                // If menu is open, we might want to update highlighting
+                if (isMenuOpen && currentCategories.length > 0) {
+                     updateCategoryHighlight();
+                }
+            }
 
-            const newActiveId = activeCategory ? activeCategory.id : '';
-            if (JSON.stringify(availableCategories) !== JSON.stringify(currentCategories) || newActiveId !== activeCategoryId) {
+            // 3. UPDATE CATEGORY LIST (Heavyweight - Conditional)
+            // CRITICAL FIX: Only re-render list if data came from backend AND menu is CLOSED.
+            // If menu is OPEN, re-rendering kills the click event/interaction.
+            if (availableCategories && !isMenuOpen) {
                 currentCategories = availableCategories;
-                activeCategoryId = newActiveId;
                 renderCategoryList();
             }
 
@@ -449,6 +465,17 @@
                 timeTextEl.innerText = "00:00:00";
                 statusEl.innerText = 'IDLE';
             }
+        }
+
+        // Separate function to just update active class without destroying DOM
+        function updateCategoryHighlight() {
+            document.querySelectorAll('#categoryList .menu-link').forEach(el => {
+                // Remove active class
+                el.classList.remove('active');
+                // Check if this element matches active ID (need data attribute ideally, using click handler reference for now)
+                // Since we rebuild list on render, we rely on renderCategoryList for initial state
+            });
+            // Re-rendering is safer for consistency if menu isn't open
         }
 
         function renderCategoryList() {
@@ -512,6 +539,9 @@
         function toggleMenu(open) {
             isMenuOpen = open;
             if (isMenuOpen) {
+                // If opening, force a render of the list to ensure it's fresh
+                renderCategoryList();
+                
                 window.electron.send('widget-resize', { height: 350, align: 'top' });
                 
                 menuWrapper.classList.add('show');

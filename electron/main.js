@@ -1,3 +1,4 @@
+
 import { app, BrowserWindow, globalShortcut, screen, ipcMain } from 'electron';
 import path from 'path';
 import isDev from 'electron-is-dev';
@@ -28,6 +29,11 @@ let timerState = {
     dailyStats: {}, // Format: { "YYYY-MM-DD": seconds }
     lastFocusEndTime: null // Timestamp of when the last FOCUS session ended
 };
+
+// --- OPTIMIZATION STATE ---
+// Track what we sent last time to avoid sending duplicate heavy objects over IPC
+let lastSentCategoriesHash = '';
+let lastSentActiveCategoryHash = '';
 
 let autoSaveHandle = null;
 let showWidgetTimeout = null;
@@ -110,7 +116,7 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     createWidgetWindow();
-    broadcastTimerUpdate(); // Send initial state
+    broadcastTimerUpdate(true); // Force full update
   });
 
   mainWindow.on('closed', () => {
@@ -152,7 +158,7 @@ function createWidgetWindow() {
 
   widgetWindow.once('ready-to-show', () => {
     widgetWindow.showInactive();
-    broadcastTimerUpdate(); // Send initial state
+    broadcastTimerUpdate(true); // Force full update
   });
 }
 
@@ -165,18 +171,41 @@ function getTodayStr() {
     return local.toISOString().split('T')[0];
 }
 
-function broadcastTimerUpdate() {
+/**
+ * Optimized Broadcast
+ * @param {boolean} force - If true, sends all data regardless of change detection
+ */
+function broadcastTimerUpdate(force = false) {
+    // 1. Prepare Lightweight Payload (Always Sent)
     const payload = {
         secondsRemaining: timerState.secondsRemaining,
         totalDuration: timerState.totalDuration,
         status: timerState.status,
         mode: timerState.mode,
-        activeCategory: timerState.activeCategory,
-        availableCategories: timerState.availableCategories,
         totalFocusTime: timerState.totalFocusTime,
         lastFocusEndTime: timerState.lastFocusEndTime
     };
 
+    // 2. Prepare Heavyweight Data (Conditional Send)
+    // We use JSON stringify to detect deep changes efficiently for this scale of data
+    const currentCategoriesHash = JSON.stringify(timerState.availableCategories);
+    const currentActiveCategoryHash = JSON.stringify(timerState.activeCategory);
+
+    let hasHeavyChanges = false;
+
+    if (force || currentCategoriesHash !== lastSentCategoriesHash) {
+        payload.availableCategories = timerState.availableCategories;
+        lastSentCategoriesHash = currentCategoriesHash;
+        hasHeavyChanges = true;
+    }
+
+    if (force || currentActiveCategoryHash !== lastSentActiveCategoryHash) {
+        payload.activeCategory = timerState.activeCategory;
+        lastSentActiveCategoryHash = currentActiveCategoryHash;
+        hasHeavyChanges = true;
+    }
+
+    // 3. Send to Windows
     if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('timer-update', payload);
     }
@@ -213,7 +242,7 @@ function stopTimer() {
     // Reset to full duration of current mode
     timerState.secondsRemaining = timerState.totalDuration;
     
-    broadcastTimerUpdate();
+    broadcastTimerUpdate(true); // State change often implies full refresh need
     saveUserData(); // Save immediately on stop
 }
 
@@ -229,7 +258,7 @@ function startTimer(durationMinutes, mode) {
     
     timerState.status = 'RUNNING';
     
-    broadcastTimerUpdate();
+    broadcastTimerUpdate(true);
     saveUserData(); // Save state immediately
 
     // Start Interval
@@ -255,7 +284,7 @@ function startTimer(durationMinutes, mode) {
             }
             
             saveUserData();
-            broadcastTimerUpdate();
+            broadcastTimerUpdate(true);
             
             // Notify Main Window to save session
             if (mainWindow && !mainWindow.isDestroyed()) {
@@ -265,7 +294,8 @@ function startTimer(durationMinutes, mode) {
                 });
             }
         } else {
-            broadcastTimerUpdate();
+            // Standard Tick - pass false to avoid re-sending categories
+            broadcastTimerUpdate(false);
         }
     }, 1000);
 }
@@ -276,7 +306,7 @@ function pauseTimer() {
         timerState.handle = null;
     }
     timerState.status = 'PAUSED';
-    broadcastTimerUpdate();
+    broadcastTimerUpdate(true);
     saveUserData();
 }
 
@@ -285,7 +315,7 @@ function resumeTimer() {
         if (timerState.handle) clearInterval(timerState.handle);
 
         timerState.status = 'RUNNING';
-        broadcastTimerUpdate();
+        broadcastTimerUpdate(true);
         
         timerState.handle = setInterval(() => {
             timerState.secondsRemaining--;
@@ -308,7 +338,7 @@ function resumeTimer() {
                  }
                  
                  saveUserData();
-                 broadcastTimerUpdate();
+                 broadcastTimerUpdate(true);
                  
                  if (mainWindow && !mainWindow.isDestroyed()) {
                     mainWindow.webContents.send('timer-complete', {
@@ -317,7 +347,7 @@ function resumeTimer() {
                     });
                  }
             } else {
-                broadcastTimerUpdate();
+                broadcastTimerUpdate(false);
             }
         }, 1000);
     }
@@ -345,17 +375,23 @@ ipcMain.on('timer-command', (event, cmd) => {
             const cat = timerState.availableCategories.find(c => c.id === catId);
             if (cat) {
                 timerState.activeCategory = cat;
-                broadcastTimerUpdate();
+                broadcastTimerUpdate(true);
                 saveUserData();
             }
             break;
         case 'SYNC_CATEGORIES':
             // React app sends list of categories to cache for widget
-            timerState.availableCategories = cmd.payload.categories || [];
-            if (cmd.payload.activeCategory) {
-                timerState.activeCategory = cmd.payload.activeCategory;
+            // We only trigger update if data actually changed
+            const newCats = cmd.payload.categories || [];
+            const newActive = cmd.payload.activeCategory;
+            
+            if (JSON.stringify(newCats) !== JSON.stringify(timerState.availableCategories) || 
+                JSON.stringify(newActive) !== JSON.stringify(timerState.activeCategory)) {
+                
+                timerState.availableCategories = newCats;
+                if (newActive) timerState.activeCategory = newActive;
+                broadcastTimerUpdate(true); // Force update to sync widget
             }
-            broadcastTimerUpdate();
             break;
     }
 });
@@ -372,7 +408,7 @@ ipcMain.on('widget-command', (event, command) => {
             showWidgetTimeout = setTimeout(() => {
                 if (widgetWindow && !widgetWindow.isDestroyed()) {
                     widgetWindow.showInactive();
-                    broadcastTimerUpdate();
+                    broadcastTimerUpdate(true);
                 }
             }, command.payload * 60 * 1000); // payload is in minutes
         }
@@ -386,7 +422,7 @@ ipcMain.on('widget-command', (event, command) => {
              const cat = timerState.availableCategories.find(c => c.id === command.payload);
              if (cat) {
                  timerState.activeCategory = cat;
-                 broadcastTimerUpdate();
+                 broadcastTimerUpdate(true);
                  saveUserData();
              }
         }
@@ -398,7 +434,7 @@ ipcMain.on('toggle-widget', () => {
         if (widgetWindow.isVisible()) widgetWindow.hide();
         else {
             widgetWindow.showInactive();
-            broadcastTimerUpdate();
+            broadcastTimerUpdate(true);
         }
     } else {
         createWidgetWindow();
