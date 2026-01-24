@@ -18,7 +18,7 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            /* Align to top for downward menu expansion */
+            /* Align start to allow downward expansion */
             justify-content: flex-start; 
             align-items: flex-end; 
         }
@@ -38,34 +38,32 @@
             position: relative;
             z-index: 20;
             
-            /* DELAYED REAPPEARANCE (2 seconds) */
+            /* REAPPEARANCE: 2s delay before style comes back */
             transition: background 0.2s ease-in 2s, border-color 0.2s ease-in 2s, box-shadow 0.2s ease-in 2s;
         }
 
-        /* HIDE ON HOVER (Immediate) - TARGET CONTENT WRAPPER ONLY */
-        /* Only hide if menu is NOT open AND cursor is over the content wrapper */
+        /* HIDE: When content-wrapper is hovered, hide container immediately */
+        /* Note: We use :has() so hovering the menu-btn (sibling) does NOT trigger this */
         body:not(.menu-active) .container:has(.content-wrapper:hover) {
-            background: rgba(15, 17, 23, 0.0); /* Fully transparent background */
+            background: rgba(15, 17, 23, 0.0);
             border-color: rgba(42, 45, 54, 0.0);
             box-shadow: none;
-            /* Override delay to hide immediately */
-            transition-delay: 0s; 
+            transition-delay: 0s; /* Immediate hide */
         }
 
-        /* Wrapper for content to fade out */
         .content-wrapper {
             display: flex;
             align-items: center;
             flex: 1;
-            /* DELAYED REAPPEARANCE (2 seconds) */
+            /* REAPPEARANCE: 2s delay */
             opacity: 1;
             transition: opacity 0.2s ease-in 2s;
         }
 
-        /* Hide content on hover immediately */
+        /* HIDE: When content-wrapper itself is hovered, hide it immediately */
         body:not(.menu-active) .content-wrapper:hover {
             opacity: 0;
-            transition-delay: 0s;
+            transition-delay: 0s; /* Immediate hide */
         }
 
         .primary-display {
@@ -142,16 +140,14 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            /* Ensure button stays visible even when container fades */
-            opacity: 1 !important; 
+            opacity: 1 !important; /* Always visible */
         }
         .menu-btn:hover, .menu-btn.active {
             color: white;
             background: rgba(255,255,255,0.1);
         }
         
-        /* If the container is hidden, make the button slightly more visible against the desktop */
-        /* Only triggers when content is hovered */
+        /* When container is hidden (content hovered), make menu btn slightly more visible against desktop */
         body:not(.menu-active) .container:has(.content-wrapper:hover) .menu-btn {
              background: rgba(0,0,0,0.5);
              color: white;
@@ -160,8 +156,7 @@
         /* NESTED MENU STYLES */
         .menu-wrapper {
             position: absolute;
-            /* Changed to Top for Downward expansion */
-            top: 55px; 
+            top: 55px; /* Drop DOWN */
             right: 0;
             display: none;
             -webkit-app-region: no-drag;
@@ -330,7 +325,7 @@
     </div>
 
     <div class="container" id="widgetContainer">
-        <!-- WRAPPED CONTENT to allow hiding everything except menu button -->
+        <!-- Content Wrapper: Hovering this triggers hide -->
         <div class="content-wrapper">
             <!-- Timer -->
             <div class="primary-display" id="mainDisplay">
@@ -364,7 +359,7 @@
             </div>
         </div>
 
-        <!-- Menu Toggle (Outside content-wrapper so it stays visible) -->
+        <!-- Menu Toggle: Sibling to content-wrapper, so hovering it does NOT trigger the :has() on container -->
         <button class="menu-btn" id="menuBtn">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
