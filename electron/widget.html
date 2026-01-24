@@ -11,7 +11,6 @@
         body {
             margin: 0;
             padding: 0;
-            /* Transparent background for the window so only elements show */
             background: transparent; 
             color: white;
             font-family: 'Inter', sans-serif;
@@ -19,10 +18,9 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            justify-content: flex-end; /* Align content to bottom */
+            justify-content: flex-end; 
         }
 
-        /* The main bar */
         .container {
             background: #0f1117;
             border-radius: 8px;
@@ -31,21 +29,19 @@
             align-items: center;
             width: 100%;
             padding: 0 12px;
-            height: 50px; /* Fixed height for the bar */
+            height: 50px; 
             flex-shrink: 0;
-            /* Drag region for frameless window */
             -webkit-app-region: drag; 
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             position: relative;
             z-index: 20;
         }
 
-        /* 1. Timer / Clock Section */
         .primary-display {
             display: flex;
             align-items: center;
             gap: 10px;
-            margin-right: 20px;
+            margin-right: 16px;
         }
 
         .ring-container {
@@ -57,7 +53,6 @@
             justify-content: center;
         }
         
-        /* The Progress Ring */
         .progress-ring__circle {
             transition: stroke-dashoffset 0.35s;
             transform: rotate(-90deg);
@@ -71,18 +66,16 @@
             color: #e5e7eb;
         }
 
-        .is-focus .time-text {
-            color: #00FF94;
-        }
+        .is-focus .time-text { color: #00FF94; }
 
-        /* 2. Metrics Section */
         .metrics {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 14px;
             flex: 1;
             border-left: 1px solid #2a2d36;
-            padding-left: 16px;
+            padding-left: 14px;
+            overflow: hidden; /* prevent overflow of long category names */
         }
 
         .metric-item {
@@ -92,9 +85,13 @@
         }
         
         .metric-value {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
-            color: #4D96FF; /* Blue accent for work hours */
+            color: #4D96FF; 
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100px;
         }
         .metric-label {
             font-size: 9px;
@@ -104,7 +101,6 @@
             font-weight: 600;
         }
 
-        /* 3. Menu Button */
         .menu-btn {
             background: none;
             border: none;
@@ -113,26 +109,22 @@
             padding: 4px;
             border-radius: 4px;
             transition: color 0.2s, background 0.2s;
-            -webkit-app-region: no-drag; /* Allow clicking */
+            -webkit-app-region: no-drag;
+            margin-left: 8px;
         }
-        .menu-btn:hover {
-            color: white;
-            background: rgba(255,255,255,0.1);
-        }
-        .menu-btn.active {
+        .menu-btn:hover, .menu-btn.active {
             color: white;
             background: rgba(255,255,255,0.1);
         }
 
-        /* Dropdown Menu */
         .dropdown {
             position: absolute;
-            bottom: 60px; /* Position above the bar */
+            bottom: 60px;
             right: 0;
             background: #1a1d24;
             border: 1px solid #2a2d36;
             border-radius: 8px;
-            width: 180px;
+            width: 200px;
             display: none;
             flex-direction: column;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
@@ -141,8 +133,15 @@
             opacity: 0;
             transform: translateY(10px);
             transition: opacity 0.2s, transform 0.2s;
+            max-height: 280px;
+            overflow-y: auto;
         }
         
+        /* Custom scrollbar for dropdown */
+        .dropdown::-webkit-scrollbar { width: 4px; }
+        .dropdown::-webkit-scrollbar-track { background: #1a1d24; }
+        .dropdown::-webkit-scrollbar-thumb { background: #2a2d36; border-radius: 2px; }
+
         .dropdown.show { 
             display: flex; 
             opacity: 1;
@@ -159,13 +158,12 @@
             font-weight: 500;
             cursor: pointer;
             transition: background 0.2s;
+            width: 100%;
         }
         .dropdown button:hover {
             background: #2a2d36;
             color: white;
         }
-        .dropdown button:first-child { border-radius: 8px 8px 0 0; }
-        .dropdown button:last-child { border-radius: 0 0 8px 8px; }
 
         .dropdown-header {
             font-size: 10px;
@@ -174,16 +172,27 @@
             padding: 8px 14px 4px;
             font-weight: 700;
             letter-spacing: 0.5px;
+            background: #1a1d24;
+            position: sticky;
+            top: 0;
         }
-
-        /* Utility classes */
-        .hidden { display: none; }
+        
+        /* Category Submenu Item Style */
+        .category-item {
+            padding-left: 20px !important;
+            font-size: 11px !important;
+            display: flex;
+            justify-content: space-between;
+        }
+        .category-item.active {
+            color: #00FF94 !important;
+        }
         
     </style>
 </head>
 <body>
     
-    <!-- Dropdown (Rendered ABOVE the container) -->
+    <!-- Dropdown -->
     <div class="dropdown" id="dropdown">
         <div class="dropdown-header">Controls</div>
         <button onclick="sendCommand('START_FOCUS', 25)">Start Focus (25m)</button>
@@ -191,16 +200,19 @@
         <button onclick="sendCommand('START_BREAK', 5)">Start Break (5m)</button>
         <button onclick="sendCommand('STOP_TIMER')">Stop Timer</button>
         
-        <div class="dropdown-header">Widget Visibility</div>
+        <div class="dropdown-header">Category</div>
+        <div id="categoryList">
+            <!-- Populated via JS -->
+            <button class="category-item" disabled>Loading...</button>
+        </div>
+
+        <div class="dropdown-header">Widget</div>
         <button onclick="sendCommand('HIDE_WIDGET')">Hide Widget</button>
-        <button onclick="sendCommand('HIDE_WIDGET', 30)">Hide for 30m</button>
-        <button onclick="sendCommand('HIDE_WIDGET', 60)">Hide for 1 hour</button>
     </div>
 
     <div class="container">
-        <!-- Main Display: Time or Timer -->
+        <!-- Timer -->
         <div class="primary-display" id="mainDisplay">
-            <!-- Ring (Visible only during focus) -->
             <div class="ring-container" id="ringContainer">
                <svg class="progress-ring" width="22" height="22">
                   <circle
@@ -215,19 +227,18 @@
                   />
                 </svg>
             </div>
-            <!-- Text -->
             <span class="time-text" id="timeText">12:00</span>
         </div>
 
         <!-- Metrics -->
         <div class="metrics">
             <div class="metric-item">
-                <span class="metric-value" id="totalFocusTime">0m</span>
-                <span class="metric-label">Focus Time</span>
+                <span class="metric-value" id="currentCategory">None</span>
+                <span class="metric-label">Category</span>
             </div>
             <div class="metric-item">
-                <span class="metric-value" id="dayPercent">0%</span>
-                <span class="metric-label">% of Day</span>
+                <span class="metric-value" id="totalFocusTime">0m</span>
+                <span class="metric-label">Total Focus</span>
             </div>
         </div>
 
@@ -265,56 +276,78 @@
 
         // Logic
         let isMenuOpen = false;
-        
-        // Listen for updates from Main App
+        let currentCategories = [];
+        let activeCategoryId = '';
+
         window.electron.receive('widget-update', (data) => {
             const { 
                 timerState, 
                 timeLeft, 
                 totalDuration, 
-                totalProductiveMinutes 
+                totalProductiveMinutes,
+                activeCategoryName,
+                activeCategoryId: newActiveId,
+                availableCategories
             } = data;
 
             const timeTextEl = document.getElementById('timeText');
             const ringContainer = document.getElementById('ringContainer');
             const mainDisplay = document.getElementById('mainDisplay');
 
-            // 1. Update Timer/Time Display
+            // 1. Timer
             if (timerState === 'RUNNING' || timerState === 'PAUSED') {
                 mainDisplay.classList.add('is-focus');
                 timeTextEl.innerText = formatTime(timeLeft);
                 ringContainer.style.display = 'flex';
-                
-                // Update ring
                 const percent = ((totalDuration * 60 - timeLeft) / (totalDuration * 60)) * 100;
-                setProgress(100 - percent); // Inverse for countdown effect
+                setProgress(100 - percent);
             } else {
-                // Show Clock
                 mainDisplay.classList.remove('is-focus');
                 const now = new Date();
                 timeTextEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
                 ringContainer.style.display = 'none';
             }
 
-            // 2. Update Stats
+            // 2. Metrics
             document.getElementById('totalFocusTime').innerText = formatDuration(totalProductiveMinutes);
-            
-            // 16 hours = 960 minutes.
-            const percentOfDay = Math.round((totalProductiveMinutes / 960) * 100);
-            document.getElementById('dayPercent').innerText = `${percentOfDay}%`;
+            document.getElementById('currentCategory').innerText = activeCategoryName || 'None';
+
+            // 3. Update Category List in Menu if changed
+            if (availableCategories && JSON.stringify(availableCategories) !== JSON.stringify(currentCategories) || newActiveId !== activeCategoryId) {
+                currentCategories = availableCategories;
+                activeCategoryId = newActiveId;
+                renderCategoryList();
+            }
         });
 
-        // Menu Logic
+        function renderCategoryList() {
+            const list = document.getElementById('categoryList');
+            list.innerHTML = '';
+            
+            const workCats = currentCategories.filter(c => c.type !== 'break');
+            
+            if (workCats.length === 0) {
+                 list.innerHTML = '<button class="category-item" disabled>No categories</button>';
+                 return;
+            }
+
+            workCats.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = `category-item ${cat.id === activeCategoryId ? 'active' : ''}`;
+                btn.innerText = cat.name;
+                btn.onclick = () => sendCommand('SET_CATEGORY', cat.id);
+                list.appendChild(btn);
+            });
+        }
+
         const menuBtn = document.getElementById('menuBtn');
         const dropdown = document.getElementById('dropdown');
 
-        // Toggle Menu
         menuBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             toggleMenu(!isMenuOpen);
         });
 
-        // Close when clicking outside
         document.addEventListener('click', (e) => {
             if(isMenuOpen && !dropdown.contains(e.target) && !menuBtn.contains(e.target)) {
                 toggleMenu(false);
@@ -324,36 +357,30 @@
         function toggleMenu(open) {
             isMenuOpen = open;
             if (isMenuOpen) {
-                // 1. Send resize request to Main Process (Expand Height)
-                // Default bar is 50px. Menu is approx 280px. Total safely 350px.
                 window.electron.send('widget-resize', { height: 350 });
-                
                 dropdown.classList.add('show');
                 menuBtn.classList.add('active');
             } else {
-                // 2. Send resize request to Main Process (Collapse Height)
                 dropdown.classList.remove('show');
                 menuBtn.classList.remove('active');
-                
-                // Delay shrinking slightly to allow CSS transition if desired, 
-                // but for window resizing immediate is usually smoother to prevent clipping.
                 window.electron.send('widget-resize', { height: 50 });
             }
         }
 
         function sendCommand(type, payload) {
             window.electron.send('widget-command', { type, payload });
-            toggleMenu(false);
+            if (type !== 'SET_CATEGORY') { // Keep menu open for category switching? No, close it.
+                toggleMenu(false);
+            }
         }
         
-        // Initial Clock Tick (fallback)
+        // Fallback clock tick
         setInterval(() => {
             if (!document.getElementById('mainDisplay').classList.contains('is-focus')) {
                  const now = new Date();
                  document.getElementById('timeText').innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
             }
         }, 1000);
-
     </script>
 </body>
 </html>

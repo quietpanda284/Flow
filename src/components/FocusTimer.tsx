@@ -15,7 +15,6 @@ const MODES: Record<TimerVariant, { label: string; minutes: number; color: strin
   BREAK_10: { label: 'Long Break', minutes: 10, color: 'text-accent-break', bg: 'bg-accent-break', icon: Battery },
 };
 
-// Polyfill for randomUUID in non-secure contexts (HTTP)
 const generateUUID = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
@@ -33,39 +32,72 @@ interface FocusTimerProps {
 
 export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMode = false }) => {
   const { user } = useAuth();
+  
+  // State
   const [timerState, setTimerState] = useState<TimerState>(TimerState.IDLE);
   const [mode, setMode] = useState<TimerVariant>('FOCUS_25');
   const [timeLeft, setTimeLeft] = useState(MODES.FOCUS_25.minutes * 60);
-  
-  // Memory State
-  const [lastFocusMode, setLastFocusMode] = useState<TimerVariant>('FOCUS_25');
-  const [lastBreakMode, setLastBreakMode] = useState<TimerVariant>('BREAK_5');
-
-  // Stats for Widget
   const [todaysProductiveMinutes, setTodaysProductiveMinutes] = useState(0);
-
-  // Feedback State
   const [lastSavedMessage, setLastSavedMessage] = useState<string | null>(null);
-
-  // Category State
+  
+  // Categories
   const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryTitle, setNewCategoryTitle] = useState('');
   const [newCategoryType, setNewCategoryType] = useState<CategoryType>('focus');
-  
-  // Fullscreen State
+
+  // View State
   const [isFullscreen, setIsFullscreen] = useState(false);
-  
-  const timerRef = useRef<number | null>(null);
   const fullScreenRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<number | null>(null);
+
+  // Memory State
+  const [lastFocusMode, setLastFocusMode] = useState<TimerVariant>('FOCUS_25');
+  const [lastBreakMode, setLastBreakMode] = useState<TimerVariant>('BREAK_5');
 
   const isFocus = mode.startsWith('FOCUS');
   const isTimerActive = timerState !== TimerState.IDLE;
 
-  // --- HELPER FUNCTIONS (Hoisted for use in Effects) ---
+  // Refs for Event Listener Access
+  const stateRef = useRef({
+      timerState,
+      mode,
+      timeLeft,
+      activeCategory,
+      categories,
+      user
+  });
+
+  // Update ref whenever state changes
+  useEffect(() => {
+      stateRef.current = { timerState, mode, timeLeft, activeCategory, categories, user };
+  }, [timerState, mode, timeLeft, activeCategory, categories, user]);
+
+  // Fullscreen Listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+        setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+        fullScreenRef.current?.requestFullscreen().catch((err) => {
+             console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+        });
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    }
+  };
+
+  // --- HELPER FUNCTIONS ---
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -89,23 +121,25 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   };
 
   const saveSession = async (actualMinutes?: number) => {
+    const { mode: currentMode, activeCategory: currentCat, user: currentUser } = stateRef.current;
+    
     const now = new Date();
-    const rawMinutes = actualMinutes ?? MODES[mode].minutes;
+    const rawMinutes = actualMinutes ?? MODES[currentMode].minutes;
     const durationMinutes = Math.max(1, Math.round(rawMinutes));
     
     if (durationMinutes < 1) return;
 
     const startDate = new Date(now.getTime() - durationMinutes * 60000);
-    
-    // Determine props
-    let categoryId = 'custom';
-    let type: CategoryType = isFocus ? 'focus' : 'break';
-    let title = MODES[mode].label;
+    const isModeFocus = currentMode.startsWith('FOCUS');
 
-    if (isFocus && activeCategory) {
-        categoryId = activeCategory.id;
-        title = activeCategory.name;
-        type = activeCategory.type;
+    let categoryId = 'custom';
+    let type: CategoryType = isModeFocus ? 'focus' : 'break';
+    let title = MODES[currentMode].label;
+
+    if (isModeFocus && currentCat) {
+        categoryId = currentCat.id;
+        title = currentCat.name;
+        type = currentCat.type;
     }
 
     const newBlock: TimeBlock = {
@@ -125,7 +159,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         setTodaysProductiveMinutes(prev => prev + durationMinutes);
     }
 
-    if (user?.isGuest) {
+    if (currentUser?.isGuest) {
         showFeedback(`Saved ${durationMinutes}m (Guest)`);
         if (onTimerComplete) onTimerComplete(newBlock);
         return;
@@ -141,142 +175,12 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     }
   };
 
-  const handleStop = () => {
-    const totalSeconds = MODES[mode].minutes * 60;
-    const elapsedSeconds = totalSeconds - timeLeft;
-    
-    setTimerState(TimerState.IDLE);
-    setTimeLeft(MODES[mode].minutes * 60);
-
-    if (elapsedSeconds >= 59) {
-        const minutes = elapsedSeconds / 60;
-        saveSession(minutes);
-    }
-  };
-
-  // --- WIDGET INTEGRATION ---
-
-  // 1. Listen for Commands from Widget
-  useEffect(() => {
-    if ((window as any).electron) {
-        const listenerId = (window as any).electron.receive('app-command', (command: any) => {
-            console.log("Received widget command:", command);
-            
-            if (command.type === 'START_FOCUS') {
-                const duration = command.payload; 
-                const newMode: TimerVariant = duration === 50 ? 'FOCUS_50' : 'FOCUS_25';
-                
-                setMode(newMode);
-                setLastFocusMode(newMode);
-                setTimeLeft(duration * 60);
-                setTimerState(TimerState.RUNNING);
-            }
-            else if (command.type === 'START_BREAK') {
-                const duration = command.payload;
-                const newMode: TimerVariant = duration === 10 ? 'BREAK_10' : 'BREAK_5';
-                
-                setMode(newMode);
-                setLastBreakMode(newMode);
-                setTimeLeft(duration * 60);
-                setTimerState(TimerState.RUNNING);
-            }
-            else if (command.type === 'STOP_TIMER') {
-                handleStop();
-            }
-        });
-
-        // Cleanup function to remove listener when component unmounts or deps change
-        return () => {
-            if ((window as any).electron.removeListener) {
-                (window as any).electron.removeListener(listenerId);
-            }
-        };
-    }
-  }, [mode, timerState, timeLeft, activeCategory]); // Re-bind when state changes to ensure closure captures latest state
-
-  // 2. Send Updates to Widget
-  useEffect(() => {
-    if ((window as any).electron) {
-        const payload = {
-            timerState,
-            timeLeft,
-            totalDuration: MODES[mode].minutes,
-            totalProductiveMinutes: todaysProductiveMinutes,
-        };
-        (window as any).electron.send('app-state-update', payload);
-    }
-  }, [timeLeft, timerState, mode, todaysProductiveMinutes]);
-
-  // Sync Stats
-  useEffect(() => {
-    const fetchTodayStats = async () => {
-        if (!user) return;
-        try {
-            const history = await getFocusHistory();
-            const todayStr = new Date().toISOString().split('T')[0];
-            const todayStat = history.find(h => h.date === todayStr);
-            setTodaysProductiveMinutes(todayStat ? todayStat.totalMinutes : 0);
-        } catch (e) {
-            console.error("Failed to sync widget stats");
-        }
-    };
-    fetchTodayStats();
-    const interval = setInterval(fetchTodayStats, 60000);
-    return () => clearInterval(interval);
-  }, [user]);
-
-  // --- CORE LOGIC ---
-
-  useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      if (user?.isGuest) {
-          setCategories(MASTER_CATEGORIES);
-          setActiveCategory(MASTER_CATEGORIES[0]);
-          setIsLoading(false);
-          return;
-      }
-      const fetchedCats = await getCategories();
-      setCategories(fetchedCats);
-      if (fetchedCats.length > 0) setActiveCategory(fetchedCats[0]);
-      setIsLoading(false);
-    };
-    loadData();
-  }, [user]);
-
-  useEffect(() => {
-    if (timerState === TimerState.RUNNING) {
-      document.title = `${formatTime(timeLeft)} - ${isFocus ? 'Focus' : 'Break'}`;
-    } else {
-      document.title = 'Flow';
-    }
-  }, [timeLeft, timerState, isFocus]);
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-        setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-        fullScreenRef.current?.requestFullscreen().catch((err) => {
-             console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-        });
-    } else {
-        if (document.exitFullscreen) {
-            document.exitFullscreen();
-        }
-    }
-  };
-
   const handleSimulateSession = async () => {
     const now = new Date();
     const durationMinutes = 25;
     const startDate = new Date(now.getTime() - durationMinutes * 60000);
     
+    // Use current settings or defaults
     let categoryId = 'custom';
     let type: CategoryType = 'focus';
     let title = 'Simulated Focus';
@@ -300,8 +204,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
         date: getLocalDateStr(now)
     };
 
-    setTodaysProductiveMinutes(prev => prev + durationMinutes);
-
     if (user?.isGuest) {
         showFeedback("Simulated 25m (Guest)");
         if (onTimerComplete) onTimerComplete(newBlock);
@@ -317,11 +219,130 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     }
   };
 
+  const handleStop = () => {
+    const { mode: currentMode, timeLeft: currentTimeLeft } = stateRef.current;
+    const totalSeconds = MODES[currentMode].minutes * 60;
+    const elapsedSeconds = totalSeconds - currentTimeLeft;
+    
+    setTimerState(TimerState.IDLE);
+    setTimeLeft(MODES[currentMode].minutes * 60);
+
+    if (elapsedSeconds >= 59) {
+        const minutes = elapsedSeconds / 60;
+        saveSession(minutes);
+    }
+  };
+
+  // --- WIDGET INTEGRATION ---
+
+  // 1. Listen for Commands (Once on mount)
+  useEffect(() => {
+    if (!(window as any).electron) return;
+
+    // Define handler that uses stateRef
+    const handleCommand = (command: any) => {
+        console.log("Received widget command:", command);
+        const currentState = stateRef.current;
+
+        if (command.type === 'START_FOCUS') {
+            const duration = command.payload; 
+            const newMode: TimerVariant = duration === 50 ? 'FOCUS_50' : 'FOCUS_25';
+            
+            // If already running same mode, ignore or maybe restart?
+            // Let's restart logic:
+            setMode(newMode);
+            setLastFocusMode(newMode);
+            setTimeLeft(duration * 60);
+            setTimerState(TimerState.RUNNING);
+        }
+        else if (command.type === 'START_BREAK') {
+            const duration = command.payload;
+            const newMode: TimerVariant = duration === 10 ? 'BREAK_10' : 'BREAK_5';
+            
+            setMode(newMode);
+            setLastBreakMode(newMode);
+            setTimeLeft(duration * 60);
+            setTimerState(TimerState.RUNNING);
+        }
+        else if (command.type === 'STOP_TIMER') {
+            handleStop(); // Uses ref internally
+        }
+        else if (command.type === 'SET_CATEGORY') {
+            const catId = command.payload;
+            const cat = currentState.categories.find(c => c.id === catId);
+            if (cat) {
+                setActiveCategory(cat);
+                showFeedback(`Category: ${cat.name}`);
+            }
+        }
+    };
+
+    const listenerId = (window as any).electron.receive('app-command', handleCommand);
+
+    return () => {
+        if ((window as any).electron.removeListener) {
+            (window as any).electron.removeListener(listenerId);
+        }
+    };
+  }, []); // Run ONCE
+
+  // 2. Send Updates to Widget
+  useEffect(() => {
+    if ((window as any).electron) {
+        const payload = {
+            timerState,
+            timeLeft,
+            totalDuration: MODES[mode].minutes,
+            totalProductiveMinutes: todaysProductiveMinutes,
+            activeCategoryName: activeCategory?.name || 'No Category',
+            activeCategoryId: activeCategory?.id || '',
+            availableCategories: categories.map(c => ({ id: c.id, name: c.name, type: c.type }))
+        };
+        (window as any).electron.send('app-state-update', payload);
+    }
+  }, [timeLeft, timerState, mode, todaysProductiveMinutes, activeCategory, categories]);
+
+  // --- LOAD DATA ---
+  
+  useEffect(() => {
+    const fetchTodayStats = async () => {
+        if (!user) return;
+        try {
+            const history = await getFocusHistory();
+            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStat = history.find(h => h.date === todayStr);
+            setTodaysProductiveMinutes(todayStat ? todayStat.totalMinutes : 0);
+        } catch (e) { console.error("Stats sync failed"); }
+    };
+    fetchTodayStats();
+    const interval = setInterval(fetchTodayStats, 60000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      setIsLoading(true);
+      if (user?.isGuest) {
+          setCategories(MASTER_CATEGORIES);
+          setActiveCategory(MASTER_CATEGORIES[0]);
+          setIsLoading(false);
+          return;
+      }
+      const fetchedCats = await getCategories();
+      setCategories(fetchedCats);
+      if (fetchedCats.length > 0 && !activeCategory) setActiveCategory(fetchedCats[0]);
+      setIsLoading(false);
+    };
+    loadCategories();
+  }, [user]);
+
+  // --- TIMER TICK ---
+
   useEffect(() => {
     if (timerState === TimerState.RUNNING) {
       timerRef.current = window.setInterval(() => {
         setTimeLeft((prev) => {
-          if (prev <= 1) { // Hit 0
+          if (prev <= 1) { 
             clearInterval(timerRef.current!);
             setTimerState(TimerState.IDLE);
             saveSession(); 
@@ -336,7 +357,9 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [timerState, mode, activeCategory]); 
+  }, [timerState]); // Minimal dependencies
+
+  // --- UI HANDLERS ---
 
   const switchTab = (tab: 'FOCUS' | 'BREAK') => {
     if (isTimerActive) return;
@@ -349,22 +372,15 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   const toggleDuration = () => {
       if (isTimerActive) return;
       let newMode: TimerVariant = mode;
-      
-      switch (mode) {
-          case 'FOCUS_25': newMode = 'FOCUS_50'; break;
-          case 'FOCUS_50': newMode = 'FOCUS_25'; break;
-          case 'BREAK_5': newMode = 'BREAK_10'; break;
-          case 'BREAK_10': newMode = 'BREAK_5'; break;
-      }
+      if (mode === 'FOCUS_25') newMode = 'FOCUS_50';
+      else if (mode === 'FOCUS_50') newMode = 'FOCUS_25';
+      else if (mode === 'BREAK_5') newMode = 'BREAK_10';
+      else if (mode === 'BREAK_10') newMode = 'BREAK_5';
       
       setMode(newMode);
+      if (newMode.startsWith('FOCUS')) setLastFocusMode(newMode);
+      else setLastBreakMode(newMode);
       
-      if (newMode.startsWith('FOCUS')) {
-          setLastFocusMode(newMode);
-      } else {
-          setLastBreakMode(newMode);
-      }
-
       setTimerState(TimerState.IDLE);
       setTimeLeft(MODES[newMode].minutes * 60);
   };
@@ -372,76 +388,20 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
   const handleStart = () => setTimerState(TimerState.RUNNING);
   
   const handleMainAction = () => {
-      if (timerState === TimerState.IDLE) {
-          handleStart();
-      } else {
-          handleStop();
-      }
+      if (timerState === TimerState.IDLE) handleStart();
+      else handleStop();
   };
 
   const toggleTimerPause = () => {
-      if (timerState === TimerState.RUNNING) {
-          setTimerState(TimerState.PAUSED);
-      } else if (timerState === TimerState.PAUSED) {
-          setTimerState(TimerState.RUNNING);
-      }
+      if (timerState === TimerState.RUNNING) setTimerState(TimerState.PAUSED);
+      else if (timerState === TimerState.PAUSED) setTimerState(TimerState.RUNNING);
   };
 
-  const handleAddCategory = async () => {
-    if (newCategoryTitle.trim()) {
-        const titleToAdd = newCategoryTitle.trim();
-        const typeToAdd = newCategoryType;
-
-        if (user?.isGuest) {
-            const newCat: Category = { id: `guest-cat-${Date.now()}`, name: titleToAdd, type: typeToAdd };
-            setCategories([...categories, newCat]);
-            setActiveCategory(newCat);
-            setNewCategoryTitle('');
-            setIsAddingCategory(false);
-            return;
-        }
-
-        try {
-          const newCat = await addCategory(titleToAdd, typeToAdd);
-          setCategories([...categories, newCat]);
-          setActiveCategory(newCat);
-          setNewCategoryTitle('');
-          setIsAddingCategory(false);
-        } catch (error) {
-          console.error("Failed to add category");
-        }
-    }
-  };
-
-  const handleDeleteCategory = async (catToDelete: Category) => {
-    if (user?.isGuest) {
-         const updatedCats = categories.filter(c => c.id !== catToDelete.id);
-         setCategories(updatedCats);
-         if (activeCategory?.id === catToDelete.id) {
-             setActiveCategory(updatedCats.length > 0 ? updatedCats[0] : null);
-         }
-         return;
-    }
-
-    try {
-      await deleteCategory(catToDelete.id);
-      const updatedCats = categories.filter(c => c.id !== catToDelete.id);
-      setCategories(updatedCats);
-      
-      if (activeCategory?.id === catToDelete.id) {
-          setActiveCategory(updatedCats.length > 0 ? updatedCats[0] : null);
-      }
-    } catch (error) {
-       console.error("Failed to delete category");
-    }
-  };
-
+  // --- RENDER ---
   const CurrentIcon = MODES[mode].icon;
-  
+
   const handleToggleWidget = () => {
-      if ((window as any).electron) {
-          (window as any).electron.send('toggle-widget');
-      }
+      if ((window as any).electron) (window as any).electron.send('toggle-widget');
   };
 
   return (
@@ -452,108 +412,31 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
       <div className={`absolute -top-32 -right-32 w-64 h-64 rounded-full blur-[100px] opacity-20 transition-all duration-700 pointer-events-none ${isFocus ? 'bg-accent-focus' : 'bg-accent-break'} ${timerState === TimerState.RUNNING ? 'scale-125 opacity-30' : ''}`} />
 
       <div className="absolute top-6 right-6 z-40 flex gap-2">
-           <button 
-                onClick={handleToggleWidget}
-                className="text-gray-500 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5"
-                title="Toggle Mini Widget"
-            >
-                <Monitor size={20} />
-            </button>
-          
-           <button 
-                onClick={toggleFullscreen}
-                className="text-gray-500 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5"
-                title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
-            >
-                {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-            </button>
+           <button onClick={handleToggleWidget} className="text-gray-500 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5" title="Toggle Mini Widget"><Monitor size={20} /></button>
+           <button onClick={toggleFullscreen} className="text-gray-500 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5" title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}>{isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}</button>
       </div>
 
       <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${lastSavedMessage ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
           <div className="bg-accent-focus/10 border border-accent-focus/30 text-accent-focus px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg backdrop-blur-md">
-              <Save size={14} />
-              {lastSavedMessage}
+              <Save size={14} />{lastSavedMessage}
           </div>
       </div>
 
       <div className="flex flex-col items-center mb-8 z-10 relative mt-4">
         <div className="flex p-1 bg-[#0f1117] rounded-lg border border-[#2a2d36] mb-6">
-            <button
-                onClick={() => switchTab('FOCUS')}
-                disabled={isTimerActive}
-                className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                    isFocus
-                    ? 'bg-[#2a2d36] text-white shadow-sm' 
-                    : 'text-gray-500 hover:text-gray-300'
-                } ${isTimerActive ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-                Focus
-            </button>
-            <button
-                onClick={() => switchTab('BREAK')}
-                disabled={isTimerActive}
-                className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                    !isFocus
-                    ? 'bg-[#2a2d36] text-white shadow-sm' 
-                    : 'text-gray-500 hover:text-gray-300'
-                } ${isTimerActive ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-                Break
-            </button>
+            <button onClick={() => switchTab('FOCUS')} disabled={isTimerActive} className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${isFocus ? 'bg-[#2a2d36] text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'} ${isTimerActive ? 'opacity-50 cursor-not-allowed' : ''}`}>Focus</button>
+            <button onClick={() => switchTab('BREAK')} disabled={isTimerActive} className={`px-6 py-2 rounded-md text-sm font-medium transition-all duration-200 ${!isFocus ? 'bg-[#2a2d36] text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'} ${isTimerActive ? 'opacity-50 cursor-not-allowed' : ''}`}>Break</button>
         </div>
         
-        <button 
-            onClick={toggleDuration}
-            disabled={isTimerActive}
-            title={isTimerActive ? "Stop timer to change duration" : "Click to switch duration"}
-            className={`group flex items-center gap-2 px-4 py-1.5 rounded-full border bg-opacity-10 transition-all active:scale-95 ${isFocus ? 'bg-green-500/10 border-green-500/20 text-accent-focus hover:bg-green-500/20' : 'bg-orange-500/10 border-orange-500/20 text-accent-break hover:bg-orange-500/20'} ${isTimerActive ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
-        >
+        <button onClick={toggleDuration} disabled={isTimerActive} className={`group flex items-center gap-2 px-4 py-1.5 rounded-full border bg-opacity-10 transition-all active:scale-95 ${isFocus ? 'bg-green-500/10 border-green-500/20 text-accent-focus hover:bg-green-500/20' : 'bg-orange-500/10 border-orange-500/20 text-accent-break hover:bg-orange-500/20'} ${isTimerActive ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}>
             <CurrentIcon size={14} />
-            <span className="text-xs font-semibold tracking-wide uppercase">
-                {isFocus ? 'Focus' : 'Break'} ({MODES[mode].minutes}m)
-            </span>
+            <span className="text-xs font-semibold tracking-wide uppercase">{isFocus ? 'Focus' : 'Break'} ({MODES[mode].minutes}m)</span>
             {!isTimerActive && <RefreshCw size={10} className="opacity-50 group-hover:rotate-180 transition-transform duration-500" />}
         </button>
       </div>
 
       <div className={`relative mb-8 z-30 transition-all duration-300 ${isFocus && !isTimerActive ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none h-0 mb-0'}`}>
         <label className={`text-xs text-gray-500 mb-1 block uppercase tracking-wider text-center ${isTimerActive ? 'opacity-50' : ''}`}>Current Category</label>
-        
-        {isAddingCategory ? (
-             <div className="flex flex-col gap-3 max-w-sm mx-auto w-full animate-in fade-in slide-in-from-top-2">
-                <div className="flex gap-2">
-                    <input 
-                        autoFocus
-                        value={newCategoryTitle}
-                        onChange={(e) => setNewCategoryTitle(e.target.value)}
-                        className="flex-1 bg-[#2a2d36] border border-[#3f434e] rounded-lg px-3 py-2 text-white outline-none focus:border-accent-focus text-sm placeholder:text-gray-600"
-                        placeholder="Category name..."
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
-                    />
-                    <button onClick={handleAddCategory} className="p-2 bg-accent-focus text-black rounded-lg hover:brightness-110 transition-all"><Check size={18} /></button>
-                    <button onClick={() => setIsAddingCategory(false)} className="p-2 bg-[#2a2d36] text-gray-400 rounded-lg hover:text-white transition-colors"><X size={18} /></button>
-                </div>
-                
-                <div className="flex gap-2 justify-center">
-                    {(['focus', 'meeting'] as const).map((t) => (
-                        <button
-                            key={t}
-                            onClick={() => setNewCategoryType(t)}
-                            className={`
-                                px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-all
-                                ${newCategoryType === t 
-                                    ? (t === 'focus' ? 'bg-accent-focus text-black border-accent-focus' 
-                                       : 'bg-accent-meeting text-white border-accent-meeting')
-                                    : 'bg-[#1a1d24] border-[#3f434e] text-gray-500 hover:border-gray-500 hover:text-gray-300'
-                                }
-                            `}
-                        >
-                            {t}
-                        </button>
-                    ))}
-                </div>
-             </div>
-        ) : (
             <div className="flex gap-2 max-w-sm mx-auto">
                 <div className="relative flex-1">
                     <button 
@@ -562,10 +445,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
                         className={`w-full bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg p-3 flex justify-between items-center text-white transition-colors group disabled:opacity-70 ${isTimerActive ? 'cursor-not-allowed opacity-50' : ''}`}
                     >
                          {isLoading ? (
-                             <div className="flex items-center gap-2">
-                                <Loader2 className="animate-spin" size={16} />
-                                <span className="font-medium text-gray-400">Loading categories...</span>
-                             </div>
+                             <div className="flex items-center gap-2"><Loader2 className="animate-spin" size={16} /><span className="font-medium text-gray-400">Loading...</span></div>
                          ) : (
                              <>
                                 <span className="font-medium truncate">{activeCategory?.name || "Select a category"}</span>
@@ -573,91 +453,34 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({ onTimerComplete, isDevMo
                              </>
                          )}
                     </button>
-                    
                     {isDropdownOpen && !isLoading && !isTimerActive && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-xl shadow-xl overflow-hidden z-50">
                             <div className="max-h-48 overflow-y-auto custom-scrollbar">
                                 {categories.map(cat => (
-                                    <div key={cat.id} className="flex items-center justify-between p-3 hover:bg-[#2a2d36] group/item transition-colors">
-                                        <button 
-                                            onClick={() => { setActiveCategory(cat); setIsDropdownOpen(false); }}
-                                            className="flex-1 text-left text-sm text-gray-200 truncate"
-                                        >
-                                            {cat.name}
-                                        </button>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat); }}
-                                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors opacity-0 group-hover/item:opacity-100"
-                                            title="Delete category"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
+                                    <button key={cat.id} onClick={() => { setActiveCategory(cat); setIsDropdownOpen(false); }} className="w-full text-left p-3 hover:bg-[#2a2d36] text-sm text-gray-200 truncate border-b border-[#2a2d36] last:border-0">{cat.name}</button>
                                 ))}
-                                {categories.length === 0 && (
-                                    <div className="p-4 text-center text-xs text-gray-500">No categories created</div>
-                                )}
                             </div>
                         </div>
                     )}
                 </div>
-                
-                <button 
-                    onClick={() => { setIsAddingCategory(true); setIsDropdownOpen(false); setNewCategoryTitle(''); setNewCategoryType('focus'); }}
-                    disabled={isTimerActive}
-                    className={`bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg px-3 flex items-center justify-center text-gray-400 hover:text-accent-focus transition-colors ${isTimerActive ? 'cursor-not-allowed opacity-50' : ''}`}
-                    title="Add new category"
-                >
-                    <Plus size={20} />
-                </button>
             </div>
-        )}
       </div>
 
-      <div 
-        onClick={toggleTimerPause}
-        className={`flex-1 flex flex-col items-center justify-center mb-8 z-10 min-h-[120px] shrink-0 relative group ${timerState !== TimerState.IDLE ? 'cursor-pointer' : ''}`}
-      >
+      <div onClick={toggleTimerPause} className={`flex-1 flex flex-col items-center justify-center mb-8 z-10 min-h-[120px] shrink-0 relative group ${timerState !== TimerState.IDLE ? 'cursor-pointer' : ''}`}>
         <div className={`text-7xl sm:text-8xl font-mono font-bold tracking-wider mb-4 transition-all duration-500 select-none ${timerState === TimerState.RUNNING ? `${MODES[mode].color} drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]` : timerState === TimerState.PAUSED ? 'text-gray-500' : 'text-white'}`}>
           {formatTime(timeLeft)}
         </div>
-        
-        <p className="text-gray-400 text-base font-medium text-center">
-            {timerState === TimerState.PAUSED 
-                ? 'Timer Paused' 
-                : timerState === TimerState.RUNNING 
-                    ? (isFocus ? 'Stay focused, keep flowing.' : 'Take a breath, relax.') 
-                    : 'Ready to start?'}
-        </p>
+        <p className="text-gray-400 text-base font-medium text-center">{timerState === TimerState.PAUSED ? 'Timer Paused' : timerState === TimerState.RUNNING ? (isFocus ? 'Stay focused.' : 'Take a breath.') : 'Ready to start?'}</p>
       </div>
 
       <div className="flex justify-center w-full z-40 mt-auto relative">
-         <button 
-            onClick={handleMainAction}
-            className={`px-10 py-3 rounded-xl font-bold transition-all shadow-lg hover:brightness-110 active:scale-95 flex items-center gap-2 ${timerState === TimerState.IDLE ? MODES[mode].bg + ' text-black' : 'bg-[#2a2d36] text-white border border-[#3f434e] hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'}`}
-         >
-            {timerState === TimerState.IDLE ? (
-                <>
-                    <Play size={18} fill="currentColor" /> Start
-                </>
-            ) : (
-                <>
-                    <Square size={18} fill="currentColor" /> Stop
-                </>
-            )}
+         <button onClick={handleMainAction} className={`px-10 py-3 rounded-xl font-bold transition-all shadow-lg hover:brightness-110 active:scale-95 flex items-center gap-2 ${timerState === TimerState.IDLE ? MODES[mode].bg + ' text-black' : 'bg-[#2a2d36] text-white border border-[#3f434e] hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400'}`}>
+            {timerState === TimerState.IDLE ? <><Play size={18} fill="currentColor" /> Start</> : <><Square size={18} fill="currentColor" /> Stop</>}
          </button>
       </div>
-
-      {isDevMode && (
-        <button 
-            onClick={handleSimulateSession}
-            className="absolute bottom-4 left-4 z-50 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 text-xs font-mono rounded hover:bg-yellow-500/20 transition-colors flex items-center gap-2"
-        >
-            <Zap size={12} />
-            DEV: SIM 25M
-        </button>
-      )}
-
+      
+       {/* Dev Mode Sim Button */}
+       {isDevMode && <button onClick={handleSimulateSession} className="absolute bottom-4 left-4 z-50 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 text-xs font-mono rounded hover:bg-yellow-500/20 transition-colors flex items-center gap-2"><Zap size={12} /> DEV: SIM 25M</button>}
     </div>
   );
 };
