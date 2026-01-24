@@ -42,9 +42,9 @@
             transition: background 0.2s ease-in 2s, border-color 0.2s ease-in 2s, box-shadow 0.2s ease-in 2s;
         }
 
-        /* HIDE: When content-wrapper is hovered, hide container immediately */
-        /* Note: We use :has() so hovering the menu-btn (sibling) does NOT trigger this */
-        body:not(.menu-active) .container:has(.content-wrapper:hover) {
+        /* HIDE: When container is hovered BUT menu button is NOT hovered */
+        /* This covers the content, the padding, and the borders */
+        body:not(.menu-active) .container:hover:not(:has(.menu-btn:hover)) {
             background: rgba(15, 17, 23, 0.0);
             border-color: rgba(42, 45, 54, 0.0);
             box-shadow: none;
@@ -60,8 +60,8 @@
             transition: opacity 0.2s ease-in 2s;
         }
 
-        /* HIDE: When content-wrapper itself is hovered, hide it immediately */
-        body:not(.menu-active) .content-wrapper:hover {
+        /* HIDE Content: Sync with container hiding */
+        body:not(.menu-active) .container:hover:not(:has(.menu-btn:hover)) .content-wrapper {
             opacity: 0;
             transition-delay: 0s; /* Immediate hide */
         }
@@ -147,8 +147,8 @@
             background: rgba(255,255,255,0.1);
         }
         
-        /* When container is hidden (content hovered), make menu btn slightly more visible against desktop */
-        body:not(.menu-active) .container:has(.content-wrapper:hover) .menu-btn {
+        /* When container is hidden, make menu btn slightly more visible against desktop */
+        body:not(.menu-active) .container:hover:not(:has(.menu-btn:hover)) .menu-btn {
              background: rgba(0,0,0,0.5);
              color: white;
         }
@@ -325,7 +325,7 @@
     </div>
 
     <div class="container" id="widgetContainer">
-        <!-- Content Wrapper: Hovering this triggers hide -->
+        <!-- Content Wrapper: Hovering this (indirectly via container check) triggers hide -->
         <div class="content-wrapper">
             <!-- Timer -->
             <div class="primary-display" id="mainDisplay">
@@ -359,7 +359,7 @@
             </div>
         </div>
 
-        <!-- Menu Toggle: Sibling to content-wrapper, so hovering it does NOT trigger the :has() on container -->
+        <!-- Menu Toggle: Hovering this prevents the hide logic -->
         <button class="menu-btn" id="menuBtn">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>

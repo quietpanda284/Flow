@@ -123,7 +123,8 @@ function createWidgetWindow() {
   const widgetHeight = 50;
 
   const xPos = width - widgetWidth - 24;
-  const yPos = height - widgetHeight - 24;
+  // Position at TOP Right so dropdown menu can flow downwards
+  const yPos = 24; 
 
   widgetWindow = new BrowserWindow({
     width: widgetWidth,
