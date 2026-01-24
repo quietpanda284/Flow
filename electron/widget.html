@@ -42,9 +42,9 @@
             transition: background 0.2s ease-in 2s, border-color 0.2s ease-in 2s, box-shadow 0.2s ease-in 2s;
         }
 
-        /* HIDE ON HOVER (Immediate) */
-        /* Only hide if menu is NOT open */
-        body:not(.menu-active) .container:hover {
+        /* HIDE ON HOVER (Immediate) - TARGET CONTENT WRAPPER ONLY */
+        /* Only hide if menu is NOT open AND cursor is over the content wrapper */
+        body:not(.menu-active) .container:has(.content-wrapper:hover) {
             background: rgba(15, 17, 23, 0.0); /* Fully transparent background */
             border-color: rgba(42, 45, 54, 0.0);
             box-shadow: none;
@@ -63,7 +63,7 @@
         }
 
         /* Hide content on hover immediately */
-        body:not(.menu-active) .container:hover .content-wrapper {
+        body:not(.menu-active) .content-wrapper:hover {
             opacity: 0;
             transition-delay: 0s;
         }
@@ -149,8 +149,10 @@
             color: white;
             background: rgba(255,255,255,0.1);
         }
+        
         /* If the container is hidden, make the button slightly more visible against the desktop */
-        body:not(.menu-active) .container:hover .menu-btn {
+        /* Only triggers when content is hovered */
+        body:not(.menu-active) .container:has(.content-wrapper:hover) .menu-btn {
              background: rgba(0,0,0,0.5);
              color: white;
         }
