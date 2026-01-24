@@ -109,6 +109,15 @@ export const addCategory = async (name: string, type: CategoryType = 'focus'): P
   });
 };
 
+export const updateCategory = async (id: string, name: string): Promise<boolean> => {
+  await fetchWithTimeout(`/categories/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  });
+  return true;
+};
+
 export const deleteCategory = async (id: string): Promise<boolean> => {
   await fetchWithTimeout(`/categories/${id}`, {
     method: 'DELETE',

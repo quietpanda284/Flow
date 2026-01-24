@@ -238,6 +238,20 @@ app.post('/api/categories', verifyToken, async (req, res) => {
     } catch (e) { res.status(400).json({ error: 'Failed to create category' }); }
 });
 
+app.put('/api/categories/:id', verifyToken, async (req, res) => {
+    try {
+        const userId = (req as any).user.id;
+        const { name } = req.body;
+        if (!name) return res.status(400).json({ error: 'Name required' });
+        
+        const [updated] = await (Category as any).update({ name }, { where: { id: req.params.id, userId } });
+        if (updated) res.json({ success: true });
+        else res.status(404).json({ error: 'Category not found or access denied' });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to update category' });
+    }
+});
+
 app.delete('/api/categories/:id', verifyToken, async (req, res) => {
     const userId = (req as any).user.id;
     // Only delete if it belongs to the user

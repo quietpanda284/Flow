@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Save, RefreshCw, Maximize2, Minimize2, Monitor, Loader2, Zap, X, Check } from 'lucide-react';
+import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Save, RefreshCw, Maximize2, Minimize2, Monitor, Loader2, Zap, X, Check, Edit2, Trash2 } from 'lucide-react';
 import { TimerState, CategoryType, Category, TimeBlock } from '../types';
-import { addCategory, deleteCategory, addTimeBlock } from '../services/api';
+import { addCategory, deleteCategory, updateCategory, addTimeBlock } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 type TimerVariant = 'FOCUS_25' | 'FOCUS_50' | 'BREAK_5' | 'BREAK_10';
@@ -50,6 +51,10 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryTitle, setNewCategoryTitle] = useState('');
   const [newCategoryType, setNewCategoryType] = useState<CategoryType>('focus');
+  
+  // Category Editing UI
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
 
   // View State
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -260,6 +265,34 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
     }
   };
 
+  const handleDeleteCategory = async (id: string) => {
+      if (confirm('Are you sure you want to delete this category?')) {
+          try {
+              await deleteCategory(id);
+              if (activeCategory?.id === id) {
+                  setActiveCategory(null); // Clear optimistic
+                  sendCommand('SET_CATEGORY', null); 
+              }
+              if (onCategoryChange) onCategoryChange();
+          } catch(e) { console.error(e); }
+      }
+  };
+
+  const handleEditCategory = async () => {
+      if (editingCategoryId && editingName.trim()) {
+          try {
+              await updateCategory(editingCategoryId, editingName.trim());
+              setEditingCategoryId(null);
+              setEditingName('');
+              if (activeCategory?.id === editingCategoryId) {
+                  // If we renamed the active category, update local state immediately so UI reflects it
+                  setActiveCategory(prev => prev ? { ...prev, name: editingName.trim() } : null);
+              }
+              if (onCategoryChange) onCategoryChange();
+          } catch(e) { console.error(e); }
+      }
+  };
+
   const CurrentIcon = MODES[mode].icon;
 
   const handleToggleWidget = () => {
@@ -323,8 +356,60 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
                             <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-xl shadow-xl overflow-hidden z-50">
                                 <div className="max-h-48 overflow-y-auto custom-scrollbar">
                                     {categories.map(cat => (
-                                        <button key={cat.id} onClick={() => handleSelectCategory(cat)} className="w-full text-left p-3 hover:bg-[#2a2d36] text-sm text-gray-200 truncate border-b border-[#2a2d36] last:border-0">{cat.name}</button>
+                                        <div key={cat.id} className="group border-b border-[#2a2d36] last:border-0">
+                                            {editingCategoryId === cat.id ? (
+                                                <div className="flex items-center p-2 gap-2 bg-[#2a2d36]">
+                                                    <input 
+                                                        className="flex-1 bg-[#1a1d24] border border-[#3f434e] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-accent-focus"
+                                                        value={editingName}
+                                                        onChange={(e) => setEditingName(e.target.value)}
+                                                        autoFocus
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') handleEditCategory();
+                                                            if (e.key === 'Escape') setEditingCategoryId(null);
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                    <button onClick={(e) => { e.stopPropagation(); handleEditCategory(); }} className="p-1 text-accent-focus hover:bg-white/5 rounded"><Check size={14}/></button>
+                                                    <button onClick={(e) => { e.stopPropagation(); setEditingCategoryId(null); }} className="p-1 text-gray-400 hover:text-white hover:bg-white/5 rounded"><X size={14}/></button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center justify-between w-full hover:bg-[#2a2d36] transition-colors">
+                                                    <button onClick={() => handleSelectCategory(cat)} className="flex-1 text-left p-3 text-sm text-gray-200 truncate">
+                                                        {cat.name}
+                                                    </button>
+                                                    {!user?.isGuest && (
+                                                        <div className="flex items-center gap-1 pr-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button 
+                                                                onClick={(e) => { 
+                                                                    e.stopPropagation(); 
+                                                                    setEditingCategoryId(cat.id); 
+                                                                    setEditingName(cat.name); 
+                                                                }} 
+                                                                className="p-1.5 text-gray-500 hover:text-white rounded-md hover:bg-white/10 transition-colors"
+                                                                title="Rename"
+                                                            >
+                                                                <Edit2 size={12} />
+                                                            </button>
+                                                            <button 
+                                                                onClick={(e) => { 
+                                                                    e.stopPropagation(); 
+                                                                    handleDeleteCategory(cat.id); 
+                                                                }} 
+                                                                className="p-1.5 text-gray-500 hover:text-red-400 rounded-md hover:bg-red-500/10 transition-colors"
+                                                                title="Delete"
+                                                            >
+                                                                <Trash2 size={12} />
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
                                     ))}
+                                    {categories.length === 0 && (
+                                        <div className="p-3 text-center text-xs text-gray-500">No categories found.</div>
+                                    )}
                                 </div>
                             </div>
                         )}
