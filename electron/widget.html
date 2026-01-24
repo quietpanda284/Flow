@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow Widget</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; user-select: none; }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0f1117;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            border-radius: 8px; /* Smooth corners */
+            border: 1px solid #2a2d36;
+            display: flex;
+            align-items: center;
+            /* Drag region for frameless window */
+            -webkit-app-region: drag; 
+        }
+
+        .container {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: 0 12px;
+            height: 100%;
+        }
+
+        /* 1. Timer / Clock Section */
+        .primary-display {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-right: 20px;
+        }
+
+        .ring-container {
+            position: relative;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* The Progress Ring */
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.35s;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+
+        .time-text {
+            font-size: 18px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            color: #e5e7eb;
+        }
+
+        .is-focus .time-text {
+            color: #00FF94;
+        }
+
+        /* 2. Metrics Section */
+        .metrics {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex: 1;
+            border-left: 1px solid #2a2d36;
+            padding-left: 16px;
+        }
+
+        .metric-item {
+            display: flex;
+            flex-direction: column;
+            line-height: 1;
+        }
+        
+        .metric-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #4D96FF; /* Blue accent for work hours */
+        }
+        .metric-label {
+            font-size: 9px;
+            color: #6b7280;
+            text-transform: uppercase;
+            margin-top: 2px;
+            font-weight: 600;
+        }
+
+        /* 3. Menu Button */
+        .menu-btn {
+            background: none;
+            border: none;
+            color: #6b7280;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: color 0.2s, background 0.2s;
+            -webkit-app-region: no-drag; /* Allow clicking */
+        }
+        .menu-btn:hover {
+            color: white;
+            background: rgba(255,255,255,0.1);
+        }
+
+        /* Dropdown Menu */
+        .dropdown {
+            position: fixed;
+            top: 45px;
+            right: 10px;
+            background: #1a1d24;
+            border: 1px solid #2a2d36;
+            border-radius: 8px;
+            width: 180px;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            z-index: 100;
+            -webkit-app-region: no-drag;
+        }
+        .dropdown.show { display: flex; }
+
+        .dropdown button {
+            background: none;
+            border: none;
+            color: #d1d5db;
+            padding: 10px 14px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .dropdown button:hover {
+            background: #2a2d36;
+            color: white;
+        }
+        .dropdown button:first-child { border-radius: 8px 8px 0 0; }
+        .dropdown button:last-child { border-radius: 0 0 8px 8px; }
+
+        .dropdown-header {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #6b7280;
+            padding: 8px 14px 4px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        /* Utility classes */
+        .hidden { display: none; }
+        
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Main Display: Time or Timer -->
+        <div class="primary-display" id="mainDisplay">
+            <!-- Ring (Visible only during focus) -->
+            <div class="ring-container" id="ringContainer">
+               <svg class="progress-ring" width="22" height="22">
+                  <circle
+                    class="progress-ring__circle"
+                    stroke="#00FF94"
+                    stroke-width="2.5"
+                    fill="transparent"
+                    r="8"
+                    cx="11"
+                    cy="11"
+                    id="timerCircle"
+                  />
+                </svg>
+            </div>
+            <!-- Text -->
+            <span class="time-text" id="timeText">12:00</span>
+        </div>
+
+        <!-- Metrics -->
+        <div class="metrics">
+            <div class="metric-item">
+                <span class="metric-value" id="totalFocusTime">0m</span>
+                <span class="metric-label">Focus Time</span>
+            </div>
+            <div class="metric-item">
+                <span class="metric-value" id="dayPercent">0%</span>
+                <span class="metric-label">% of Day</span>
+            </div>
+        </div>
+
+        <!-- Menu -->
+        <button class="menu-btn" id="menuBtn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+    </div>
+
+    <!-- Dropdown -->
+    <div class="dropdown" id="dropdown">
+        <div class="dropdown-header">Controls</div>
+        <button onclick="sendCommand('START_FOCUS', 25)">Start Focus (25m)</button>
+        <button onclick="sendCommand('START_FOCUS', 50)">Start Focus (50m)</button>
+        <button onclick="sendCommand('START_BREAK', 5)">Start Break (5m)</button>
+        <button onclick="sendCommand('STOP_TIMER')">Stop Timer</button>
+        
+        <div class="dropdown-header">Widget Visibility</div>
+        <button onclick="sendCommand('HIDE_WIDGET')">Hide Widget</button>
+        <button onclick="sendCommand('HIDE_WIDGET', 30)">Hide for 30m</button>
+        <button onclick="sendCommand('HIDE_WIDGET', 60)">Hide for 1 hour</button>
+    </div>
+
+    <script>
+        const ring = document.getElementById('timerCircle');
+        const radius = ring.r.baseVal.value;
+        const circumference = radius * 2 * Math.PI;
+        
+        ring.style.strokeDasharray = `${circumference} ${circumference}`;
+        ring.style.strokeDashoffset = circumference;
+
+        function setProgress(percent) {
+            const offset = circumference - (percent / 100) * circumference;
+            ring.style.strokeDashoffset = offset;
+        }
+
+        function formatTime(totalSeconds) {
+            const m = Math.floor(totalSeconds / 60);
+            const s = totalSeconds % 60;
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function formatDuration(minutes) {
+             const h = Math.floor(minutes / 60);
+             const m = minutes % 60;
+             if (h > 0) return `${h}h ${m}m`;
+             return `${m}m`;
+        }
+
+        // Logic
+        let isMenuOpen = false;
+        
+        // Listen for updates from Main App
+        window.electron.receive('widget-update', (data) => {
+            const { 
+                timerState, 
+                timeLeft, 
+                totalDuration, 
+                totalProductiveMinutes 
+            } = data;
+
+            const timeTextEl = document.getElementById('timeText');
+            const ringContainer = document.getElementById('ringContainer');
+            const mainDisplay = document.getElementById('mainDisplay');
+
+            // 1. Update Timer/Time Display
+            if (timerState === 'RUNNING' || timerState === 'PAUSED') {
+                mainDisplay.classList.add('is-focus');
+                timeTextEl.innerText = formatTime(timeLeft);
+                ringContainer.style.display = 'flex';
+                
+                // Update ring
+                const percent = ((totalDuration * 60 - timeLeft) / (totalDuration * 60)) * 100;
+                setProgress(100 - percent); // Inverse for countdown effect
+            } else {
+                // Show Clock
+                mainDisplay.classList.remove('is-focus');
+                const now = new Date();
+                timeTextEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                ringContainer.style.display = 'none';
+            }
+
+            // 2. Update Stats
+            document.getElementById('totalFocusTime').innerText = formatDuration(totalProductiveMinutes);
+            
+            // 16 hours = 960 minutes.
+            const percentOfDay = Math.round((totalProductiveMinutes / 960) * 100);
+            document.getElementById('dayPercent').innerText = `${percentOfDay}%`;
+        });
+
+        // Menu Logic
+        const menuBtn = document.getElementById('menuBtn');
+        const dropdown = document.getElementById('dropdown');
+
+        menuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            isMenuOpen = !isMenuOpen;
+            if(isMenuOpen) dropdown.classList.add('show');
+            else dropdown.classList.remove('show');
+        });
+
+        document.addEventListener('click', () => {
+            if(isMenuOpen) {
+                isMenuOpen = false;
+                dropdown.classList.remove('show');
+            }
+        });
+
+        function sendCommand(type, payload) {
+            window.electron.send('widget-command', { type, payload });
+            // Close menu
+            isMenuOpen = false;
+            dropdown.classList.remove('show');
+        }
+        
+        // Initial Clock Tick (fallback)
+        setInterval(() => {
+            if (!document.getElementById('mainDisplay').classList.contains('is-focus')) {
+                 const now = new Date();
+                 document.getElementById('timeText').innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+        }, 1000);
+
+    </script>
+</body>
+</html>

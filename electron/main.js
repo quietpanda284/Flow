@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, screen } from 'electron';
+import { app, BrowserWindow, globalShortcut, screen, ipcMain } from 'electron';
 import path from 'path';
 import isDev from 'electron-is-dev';
 import { fileURLToPath } from 'url';
@@ -7,9 +7,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let mainWindow;
+let widgetWindow;
 
 function createWindow() {
-  // Get primary display size
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
   mainWindow = new BrowserWindow({
@@ -17,36 +17,99 @@ function createWindow() {
     height: 900,
     minWidth: 1000,
     minHeight: 700,
-    backgroundColor: '#0f1117', // Match your app background
-    titleBarStyle: 'hiddenInset', // Native-looking header on Mac
+    backgroundColor: '#0f1117',
+    titleBarStyle: 'hiddenInset',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
-    show: false, // Don't show until ready
+    show: false,
   });
 
-  // Load the React App
-  // In dev, we wait for localhost:3000 (handled by 'wait-on' in package.json)
   const startUrl = isDev
     ? 'http://localhost:3000'
     : `file://${path.join(__dirname, '../dist/index.html')}`;
 
   mainWindow.loadURL(startUrl);
 
-  // Show window when content is ready to prevent white flash
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    createWidgetWindow(); // Create widget after main window
   });
 
-  // Handle closing (Mac behavior: keep app running)
-  mainWindow.on('closed', () => (mainWindow = null));
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    if (widgetWindow) widgetWindow.close(); // Close widget if main app closes
+  });
 }
+
+function createWidgetWindow() {
+  widgetWindow = new BrowserWindow({
+    width: 320,
+    height: 50, // Compact height
+    frame: false, // Frameless
+    resizable: false, // Keep size fixed
+    alwaysOnTop: true,
+    transparent: true, // Allow rounded corners if needed via CSS
+    skipTaskbar: true, // Don't show in dock/taskbar
+    backgroundColor: '#00000000', // Transparent bg for CSS control
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+    show: false,
+  });
+
+  // Load the separate widget HTML file
+  widgetWindow.loadFile(path.join(__dirname, 'widget.html'));
+
+  // Default to hidden
+  widgetWindow.hide(); 
+}
+
+// --- IPC COMMUNICATION ---
+
+// 1. React App sends state updates (Time, Timer Status) -> Main -> Widget
+ipcMain.on('app-state-update', (event, data) => {
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send('widget-update', data);
+  }
+});
+
+// 2. Widget sends commands (Start Timer, Pause, etc) -> Main -> React App
+ipcMain.on('widget-command', (event, command) => {
+  if (command.type === 'HIDE_WIDGET') {
+     // Handle visual hiding directly in main process
+     if (widgetWindow) {
+         widgetWindow.hide();
+         // Optional: Auto-show logic could be added here using setTimeout
+         if (command.durationMinutes) {
+             setTimeout(() => {
+                 if(widgetWindow && !widgetWindow.isDestroyed()) widgetWindow.show();
+             }, command.durationMinutes * 60 * 1000);
+         }
+     }
+  } else {
+      // Forward other commands to React App to handle logic
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('app-command', command);
+      }
+  }
+});
+
+// 3. React App tells Widget to show up (e.g. toggle button in settings)
+ipcMain.on('toggle-widget', () => {
+    if (widgetWindow) {
+        if (widgetWindow.isVisible()) widgetWindow.hide();
+        else widgetWindow.show();
+    }
+});
+
 
 // --- GLOBAL HOTKEY LOGIC ---
 const registerGlobalShortcuts = () => {
-  // Register Cmd+K (Mac) or Ctrl+K (Windows)
   const ret = globalShortcut.register('CommandOrControl+K', () => {
     if (!mainWindow) {
         createWindow();
@@ -54,10 +117,8 @@ const registerGlobalShortcuts = () => {
     }
 
     if (mainWindow.isVisible() && mainWindow.isFocused()) {
-      // If visible and focused, hide it (Rize.io style toggle)
       mainWindow.hide();
     } else {
-      // If hidden or background, bring to front
       mainWindow.show();
       mainWindow.focus();
     }
@@ -80,7 +141,6 @@ app.whenReady().then(() => {
 });
 
 app.on('will-quit', () => {
-  // Unregister all shortcuts.
   globalShortcut.unregisterAll();
 });
 
