@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 let mainWindow;
 let widgetWindow;
 
-// Persistence File Path
+// --- PERSISTENCE CONFIGURATION ---
 const DATA_FILE = path.join(app.getPath('userData'), 'user-data.json');
 
 // --- CENTRALIZED TIMER STATE (Single Source of Truth) ---
@@ -23,8 +23,8 @@ let timerState = {
     activeCategory: null, // { id, name, type }
     availableCategories: [], // Cache for widget
     
-    // Persistent Stats
-    totalFocusTime: 0,
+    // Persistent Data
+    totalFocusTime: 0, // Total seconds focused lifetime
     dailyStats: {} // Format: { "YYYY-MM-DD": seconds }
 };
 
@@ -38,21 +38,19 @@ function loadUserData() {
             const rawData = fs.readFileSync(DATA_FILE, 'utf-8');
             const savedData = JSON.parse(rawData);
             
-            // Merge saved data into timerState, preserving defaults for missing keys
-            // We explicitely exclude 'handle' to avoid overwriting it with garbage
+            // Merge saved data into timerState, excluding non-serializable handle
             const { handle, ...dataToRestore } = savedData;
             
             timerState = {
                 ...timerState,
                 ...dataToRestore
             };
-
+            
             console.log('User data loaded successfully.');
-
-            // Resume timer if it was running or paused
+            
+            // If timer was running when app closed, resume it
             if (timerState.status === 'RUNNING') {
-                // If it was running, resume the interval immediately
-                resumeTimer(); 
+                resumeTimer();
             }
         }
     } catch (error) {
@@ -62,10 +60,8 @@ function loadUserData() {
 
 function saveUserData() {
     try {
-        // Create a copy without the internal handle
         const { handle, ...dataToSave } = timerState;
         fs.writeFileSync(DATA_FILE, JSON.stringify(dataToSave, null, 2));
-        // console.log('User data saved.');
     } catch (error) {
         console.error('Failed to save user data:', error);
     }
@@ -73,13 +69,15 @@ function saveUserData() {
 
 function startAutoSave() {
     if (autoSaveHandle) clearInterval(autoSaveHandle);
-    // Save every 30 seconds
+    // Save every 30 seconds if timer is running
     autoSaveHandle = setInterval(() => {
         if (timerState.status === 'RUNNING') {
             saveUserData();
         }
     }, 30000);
 }
+
+// --- WINDOW MANAGEMENT ---
 
 function createWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -170,9 +168,7 @@ function broadcastTimerUpdate() {
         mode: timerState.mode,
         activeCategory: timerState.activeCategory,
         availableCategories: timerState.availableCategories,
-        // Send extra stats so UI can use them
-        totalFocusTime: timerState.totalFocusTime,
-        dailyStats: timerState.dailyStats
+        totalFocusTime: timerState.totalFocusTime
     };
 
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -188,11 +184,26 @@ function stopTimer() {
         clearInterval(timerState.handle);
         timerState.handle = null;
     }
+    
+    // Calculate elapsed time (how much work was done before stopping)
+    const elapsedSeconds = timerState.totalDuration - timerState.secondsRemaining;
+    
+    // If user focused for at least 60 seconds, create a record
+    if (timerState.status !== 'IDLE' && elapsedSeconds >= 60) {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('timer-complete', {
+                mode: timerState.mode,
+                duration: elapsedSeconds / 60
+            });
+        }
+    }
+
     timerState.status = 'IDLE';
     // Reset to full duration of current mode
     timerState.secondsRemaining = timerState.totalDuration;
+    
     broadcastTimerUpdate();
-    saveUserData(); // Save on stop
+    saveUserData(); // Save immediately on stop
 }
 
 function startTimer(durationMinutes, mode) {
@@ -207,22 +218,19 @@ function startTimer(durationMinutes, mode) {
     
     timerState.status = 'RUNNING';
     
-    // Initial broadcast
     broadcastTimerUpdate();
-    saveUserData(); // Save on start
+    saveUserData(); // Save state immediately
 
     // Start Interval
     timerState.handle = setInterval(() => {
         timerState.secondsRemaining--;
-        
-        // --- PERSISTENCE UPDATE ---
-        // Only track "work" modes for stats, not breaks
+
+        // Track Statistics (Only for Focus modes, not breaks)
         if (timerState.mode.includes('FOCUS')) {
             timerState.totalFocusTime++;
             const today = getTodayStr();
             timerState.dailyStats[today] = (timerState.dailyStats[today] || 0) + 1;
         }
-        // --------------------------
 
         if (timerState.secondsRemaining <= 0) {
             // Timer Complete
@@ -231,7 +239,7 @@ function startTimer(durationMinutes, mode) {
             timerState.status = 'IDLE';
             timerState.secondsRemaining = 0;
             
-            saveUserData(); // Save on complete
+            saveUserData();
             broadcastTimerUpdate();
             
             // Notify Main Window to save session
@@ -258,10 +266,7 @@ function pauseTimer() {
 }
 
 function resumeTimer() {
-    // Treat 'RUNNING' as a valid state to resume from (e.g. app restart)
     if (timerState.status === 'PAUSED' || timerState.status === 'RUNNING') {
-        
-        // Ensure we don't have double intervals
         if (timerState.handle) clearInterval(timerState.handle);
 
         timerState.status = 'RUNNING';
@@ -270,21 +275,22 @@ function resumeTimer() {
         timerState.handle = setInterval(() => {
             timerState.secondsRemaining--;
             
-            // --- PERSISTENCE UPDATE ---
+            // Track Statistics
             if (timerState.mode.includes('FOCUS')) {
                 timerState.totalFocusTime++;
                 const today = getTodayStr();
                 timerState.dailyStats[today] = (timerState.dailyStats[today] || 0) + 1;
             }
-            // --------------------------
 
             if (timerState.secondsRemaining <= 0) {
                  clearInterval(timerState.handle);
                  timerState.handle = null;
                  timerState.status = 'IDLE';
                  timerState.secondsRemaining = 0;
+                 
                  saveUserData();
                  broadcastTimerUpdate();
+                 
                  if (mainWindow && !mainWindow.isDestroyed()) {
                     mainWindow.webContents.send('timer-complete', {
                         mode: timerState.mode,
@@ -321,7 +327,7 @@ ipcMain.on('timer-command', (event, cmd) => {
             if (cat) {
                 timerState.activeCategory = cat;
                 broadcastTimerUpdate();
-                saveUserData(); // Save preference
+                saveUserData();
             }
             break;
         case 'SYNC_CATEGORIES':
@@ -396,8 +402,8 @@ const registerGlobalShortcuts = () => {
 };
 
 app.whenReady().then(() => {
-  loadUserData(); // LOAD DATA ON STARTUP
-  startAutoSave(); // START AUTO-SAVE
+  loadUserData(); // LOAD
+  startAutoSave(); // AUTO-SAVE
   
   createWindow();
   registerGlobalShortcuts();
@@ -408,12 +414,12 @@ app.whenReady().then(() => {
 });
 
 app.on('will-quit', () => {
-  saveUserData(); // SAVE ON QUIT
+  saveUserData(); // SAVE
   globalShortcut.unregisterAll();
   if (autoSaveHandle) clearInterval(autoSaveHandle);
 });
 
 app.on('window-all-closed', () => {
-  saveUserData(); // SAVE ON WINDOW CLOSE
+  saveUserData(); // SAVE
   if (process.platform !== 'darwin') app.quit();
 });
