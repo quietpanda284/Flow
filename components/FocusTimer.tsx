@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Save, RefreshCw, Maximize2, Minimize2, Monitor, Loader2, Zap } from 'lucide-react';
+import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Save, RefreshCw, Maximize2, Minimize2, Monitor, Loader2, Zap, X, Check } from 'lucide-react';
 import { TimerState, CategoryType, Category, TimeBlock } from '../types';
 import { addCategory, deleteCategory, addTimeBlock } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -65,18 +65,20 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
     stateRef.current = { categories, user, activeCategory };
   }, [categories, user, activeCategory]);
 
-  // Sync Categories with Electron Main Process
+  // --- FIX 1: INFINITE LOOP ---
+  // We removed 'activeCategory' from the payload and the dependency array.
+  // React now only syncs the LIST of categories. The ACTIVE state is owned by Electron.
   useEffect(() => {
     if ((window as any).electron) {
         (window as any).electron.send('timer-command', {
             type: 'SYNC_CATEGORIES',
             payload: {
                 categories: categories.map(c => ({ id: c.id, name: c.name, type: c.type })),
-                activeCategory: activeCategory
+                // activeCategory: activeCategory  <-- REMOVED THIS LINE TO STOP LOOP
             }
         });
     }
-  }, [categories, activeCategory]);
+  }, [categories]); // <-- REMOVED activeCategory from dependencies
 
   // Fullscreen Listener
   useEffect(() => {
@@ -176,7 +178,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
           if (data.mode) setMode(data.mode);
           
           // Sync Active Category if changed externally
-          if (data.activeCategory) {
+          // Note: We check if data.activeCategory exists to avoid nulling it out if payload is partial
+          if (data.activeCategory !== undefined) {
               setActiveCategory(data.activeCategory);
           }
       });
@@ -205,9 +208,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
 
   const switchTab = (tab: 'FOCUS' | 'BREAK') => {
     if (isTimerActive) return;
-    const newMode: TimerVariant = tab === 'FOCUS' ? 'FOCUS_25' : 'BREAK_5'; // Default switch
-    // Note: We don't set local state immediately, we wait for update, but we can optimistically update active tab UI logic
-    // Actually, strictly speaking, mode determines tab.
+    const newMode: TimerVariant = tab === 'FOCUS' ? 'FOCUS_25' : 'BREAK_5'; 
     setMode(newMode);
     setTimeLeft(MODES[newMode].minutes * 60);
   };
@@ -237,12 +238,13 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
   };
 
   const handleSelectCategory = (cat: Category) => {
+      // Optimistic update
       setActiveCategory(cat);
       setIsDropdownOpen(false);
+      // Send Truth to Electron
       sendCommand('SET_CATEGORY', cat.id);
   };
 
-  // Category Management Handlers (API calls + Sync)
   const handleAddCategory = async () => {
     if (newCategoryTitle.trim()) {
         try {
@@ -252,6 +254,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
             if (onCategoryChange) onCategoryChange(); // Refresh App categories
             setNewCategoryTitle('');
             setIsAddingCategory(false);
+            // Re-open dropdown to show new category
+            setIsDropdownOpen(true);
         } catch (e) { console.error(e); }
     }
   };
@@ -293,45 +297,74 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
         </button>
       </div>
 
-      {/* Category Dropdown (Only visible for FOCUS and not active) */}
+      {/* --- FIX 2: ADD CATEGORY UI --- */}
       <div className={`relative mb-8 z-30 transition-all duration-300 ${isFocus && !isTimerActive ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none h-0 mb-0'}`}>
         <label className={`text-xs text-gray-500 mb-1 block uppercase tracking-wider text-center ${isTimerActive ? 'opacity-50' : ''}`}>Current Category</label>
-            <div className="flex gap-2 max-w-sm mx-auto">
-                <div className="relative flex-1">
-                    <button 
-                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        disabled={isTimerActive}
-                        className={`w-full bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg p-3 flex justify-between items-center text-white transition-colors group disabled:opacity-70 ${isTimerActive ? 'cursor-not-allowed opacity-50' : ''}`}
-                    >
-                         {activeCategory ? (
-                             <>
-                                <span className="font-medium truncate">{activeCategory.name}</span>
-                                <ChevronDown size={16} className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                             </>
-                         ) : (
-                             <div className="flex items-center gap-2"><span className="font-medium text-gray-400">Select Category</span></div>
-                         )}
-                    </button>
-                    {isDropdownOpen && !isTimerActive && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-xl shadow-xl overflow-hidden z-50">
-                            <div className="max-h-48 overflow-y-auto custom-scrollbar">
-                                {categories.map(cat => (
-                                    <button key={cat.id} onClick={() => handleSelectCategory(cat)} className="w-full text-left p-3 hover:bg-[#2a2d36] text-sm text-gray-200 truncate border-b border-[#2a2d36] last:border-0">{cat.name}</button>
-                                ))}
+            
+            {/* TOGGLE BETWEEN SELECT MODE AND ADD MODE */}
+            {!isAddingCategory ? (
+                <div className="flex gap-2 max-w-sm mx-auto">
+                    <div className="relative flex-1">
+                        <button 
+                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                            disabled={isTimerActive}
+                            className={`w-full bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg p-3 flex justify-between items-center text-white transition-colors group disabled:opacity-70 ${isTimerActive ? 'cursor-not-allowed opacity-50' : ''}`}
+                        >
+                             {activeCategory ? (
+                                 <>
+                                    <span className="font-medium truncate">{activeCategory.name}</span>
+                                    <ChevronDown size={16} className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                                 </>
+                             ) : (
+                                 <div className="flex items-center gap-2"><span className="font-medium text-gray-400">Select Category</span></div>
+                             )}
+                        </button>
+                        {isDropdownOpen && !isTimerActive && (
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-[#3f434e] rounded-xl shadow-xl overflow-hidden z-50">
+                                <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                                    {categories.map(cat => (
+                                        <button key={cat.id} onClick={() => handleSelectCategory(cat)} className="w-full text-left p-3 hover:bg-[#2a2d36] text-sm text-gray-200 truncate border-b border-[#2a2d36] last:border-0">{cat.name}</button>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
+                    
+                    <button 
+                        onClick={() => { setIsAddingCategory(true); setIsDropdownOpen(false); setNewCategoryTitle(''); setNewCategoryType('focus'); }}
+                        disabled={isTimerActive}
+                        className={`bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg px-3 flex items-center justify-center text-gray-400 hover:text-accent-focus transition-colors ${isTimerActive ? 'cursor-not-allowed opacity-50' : ''}`}
+                        title="Add new category"
+                    >
+                        <Plus size={20} />
+                    </button>
                 </div>
-                
-                <button 
-                    onClick={() => { setIsAddingCategory(true); setIsDropdownOpen(false); setNewCategoryTitle(''); setNewCategoryType('focus'); }}
-                    disabled={isTimerActive}
-                    className={`bg-[#2a2d36] hover:bg-[#323640] border border-[#3f434e] rounded-lg px-3 flex items-center justify-center text-gray-400 hover:text-accent-focus transition-colors ${isTimerActive ? 'cursor-not-allowed opacity-50' : ''}`}
-                    title="Add new category"
-                >
-                    <Plus size={20} />
-                </button>
-            </div>
+            ) : (
+                /* ADD NEW CATEGORY FORM */
+                <div className="flex gap-2 max-w-sm mx-auto animate-in fade-in zoom-in-95 duration-200">
+                    <input 
+                        type="text" 
+                        value={newCategoryTitle}
+                        onChange={(e) => setNewCategoryTitle(e.target.value)}
+                        placeholder="New category name..."
+                        className="flex-1 bg-[#1a1d24] border border-[#3f434e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-focus transition-colors placeholder:text-gray-600"
+                        autoFocus
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
+                    />
+                    <button 
+                        onClick={handleAddCategory}
+                        className="bg-accent-focus/10 border border-accent-focus/30 text-accent-focus hover:bg-accent-focus/20 rounded-lg px-3 flex items-center justify-center transition-colors"
+                    >
+                        <Check size={18} />
+                    </button>
+                    <button 
+                        onClick={() => setIsAddingCategory(false)}
+                        className="bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 rounded-lg px-3 flex items-center justify-center transition-colors"
+                    >
+                        <X size={18} />
+                    </button>
+                </div>
+            )}
       </div>
 
       <div onClick={toggleTimerPause} className={`flex-1 flex flex-col items-center justify-center mb-8 z-10 min-h-[120px] shrink-0 relative group ${timerState !== TimerState.IDLE ? 'cursor-pointer' : ''}`}>
