@@ -166,6 +166,12 @@
             background: #2a2d36;
             color: white;
         }
+        
+        /* Highlight active parent items */
+        .menu-item.active > .menu-link {
+            background: #2a2d36;
+            color: white;
+        }
 
         /* Arrow Icon for Items with Submenu */
         .arrow {
@@ -173,6 +179,11 @@
             height: 12px;
             margin-left: 8px;
             opacity: 0.6;
+            transition: transform 0.2s;
+        }
+        
+        .menu-item.active .arrow {
+            transform: rotate(90deg);
         }
 
         /* Submenu */
@@ -194,8 +205,8 @@
             overflow-y: auto;
         }
 
-        /* Show Submenu on Hover */
-        .menu-item:hover > .submenu {
+        /* Show Submenu when Active (Clicked) */
+        .menu-item.active > .submenu {
             display: block;
         }
 
@@ -230,7 +241,7 @@
         <ul class="menu">
             <!-- Focus -->
             <li class="menu-item">
-                <div class="menu-link">
+                <div class="menu-link" onclick="toggleSubmenu(event)">
                     Focus
                     <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                 </div>
@@ -242,7 +253,7 @@
 
             <!-- Break -->
             <li class="menu-item">
-                <div class="menu-link">
+                <div class="menu-link" onclick="toggleSubmenu(event)">
                     Break
                     <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                 </div>
@@ -259,7 +270,7 @@
 
             <!-- Category -->
             <li class="menu-item">
-                <div class="menu-link">
+                <div class="menu-link" onclick="toggleSubmenu(event)">
                     Category
                     <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                 </div>
@@ -271,7 +282,7 @@
 
             <!-- Hide Widget -->
             <li class="menu-item">
-                <div class="menu-link">
+                <div class="menu-link" onclick="toggleSubmenu(event)">
                     Hide Widget
                     <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                 </div>
@@ -451,6 +462,27 @@
             }
         });
 
+        // New function to handle submenu toggling
+        function toggleSubmenu(e) {
+            e.stopPropagation();
+            const link = e.currentTarget;
+            const menuItem = link.parentElement;
+            
+            const isActive = menuItem.classList.contains('active');
+            
+            // Close all other submenus
+            document.querySelectorAll('.menu-item.active').forEach(item => {
+                if (item !== menuItem) item.classList.remove('active');
+            });
+
+            // Toggle current
+            if (isActive) {
+                menuItem.classList.remove('active');
+            } else {
+                menuItem.classList.add('active');
+            }
+        }
+
         function toggleMenu(open) {
             isMenuOpen = open;
             if (isMenuOpen) {
@@ -463,6 +495,9 @@
                 menuWrapper.classList.remove('show');
                 menuBtn.classList.remove('active');
                 window.electron.send('widget-resize', { height: 50 });
+                
+                // Reset all submenus when main menu closes
+                document.querySelectorAll('.menu-item.active').forEach(el => el.classList.remove('active'));
             }
         }
 
