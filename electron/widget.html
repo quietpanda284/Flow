@@ -7,28 +7,37 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; user-select: none; }
+        
         body {
             margin: 0;
             padding: 0;
-            background: #0f1117;
+            /* Transparent background for the window so only elements show */
+            background: transparent; 
             color: white;
             font-family: 'Inter', sans-serif;
             height: 100vh;
             overflow: hidden;
-            border-radius: 8px; /* Smooth corners */
-            border: 1px solid #2a2d36;
             display: flex;
-            align-items: center;
-            /* Drag region for frameless window */
-            -webkit-app-region: drag; 
+            flex-direction: column;
+            justify-content: flex-end; /* Align content to bottom */
         }
 
+        /* The main bar */
         .container {
+            background: #0f1117;
+            border-radius: 8px;
+            border: 1px solid #2a2d36;
             display: flex;
             align-items: center;
             width: 100%;
             padding: 0 12px;
-            height: 100%;
+            height: 50px; /* Fixed height for the bar */
+            flex-shrink: 0;
+            /* Drag region for frameless window */
+            -webkit-app-region: drag; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 20;
         }
 
         /* 1. Timer / Clock Section */
@@ -110,12 +119,16 @@
             color: white;
             background: rgba(255,255,255,0.1);
         }
+        .menu-btn.active {
+            color: white;
+            background: rgba(255,255,255,0.1);
+        }
 
         /* Dropdown Menu */
         .dropdown {
-            position: fixed;
-            top: 45px;
-            right: 10px;
+            position: absolute;
+            bottom: 60px; /* Position above the bar */
+            right: 0;
             background: #1a1d24;
             border: 1px solid #2a2d36;
             border-radius: 8px;
@@ -123,10 +136,18 @@
             display: none;
             flex-direction: column;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            z-index: 100;
+            z-index: 10;
             -webkit-app-region: no-drag;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.2s, transform 0.2s;
         }
-        .dropdown.show { display: flex; }
+        
+        .dropdown.show { 
+            display: flex; 
+            opacity: 1;
+            transform: translateY(0);
+        }
 
         .dropdown button {
             background: none;
@@ -161,6 +182,21 @@
     </style>
 </head>
 <body>
+    
+    <!-- Dropdown (Rendered ABOVE the container) -->
+    <div class="dropdown" id="dropdown">
+        <div class="dropdown-header">Controls</div>
+        <button onclick="sendCommand('START_FOCUS', 25)">Start Focus (25m)</button>
+        <button onclick="sendCommand('START_FOCUS', 50)">Start Focus (50m)</button>
+        <button onclick="sendCommand('START_BREAK', 5)">Start Break (5m)</button>
+        <button onclick="sendCommand('STOP_TIMER')">Stop Timer</button>
+        
+        <div class="dropdown-header">Widget Visibility</div>
+        <button onclick="sendCommand('HIDE_WIDGET')">Hide Widget</button>
+        <button onclick="sendCommand('HIDE_WIDGET', 30)">Hide for 30m</button>
+        <button onclick="sendCommand('HIDE_WIDGET', 60)">Hide for 1 hour</button>
+    </div>
+
     <div class="container">
         <!-- Main Display: Time or Timer -->
         <div class="primary-display" id="mainDisplay">
@@ -199,20 +235,6 @@
         <button class="menu-btn" id="menuBtn">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
-    </div>
-
-    <!-- Dropdown -->
-    <div class="dropdown" id="dropdown">
-        <div class="dropdown-header">Controls</div>
-        <button onclick="sendCommand('START_FOCUS', 25)">Start Focus (25m)</button>
-        <button onclick="sendCommand('START_FOCUS', 50)">Start Focus (50m)</button>
-        <button onclick="sendCommand('START_BREAK', 5)">Start Break (5m)</button>
-        <button onclick="sendCommand('STOP_TIMER')">Stop Timer</button>
-        
-        <div class="dropdown-header">Widget Visibility</div>
-        <button onclick="sendCommand('HIDE_WIDGET')">Hide Widget</button>
-        <button onclick="sendCommand('HIDE_WIDGET', 30)">Hide for 30m</button>
-        <button onclick="sendCommand('HIDE_WIDGET', 60)">Hide for 1 hour</button>
     </div>
 
     <script>
@@ -286,25 +308,42 @@
         const menuBtn = document.getElementById('menuBtn');
         const dropdown = document.getElementById('dropdown');
 
+        // Toggle Menu
         menuBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            isMenuOpen = !isMenuOpen;
-            if(isMenuOpen) dropdown.classList.add('show');
-            else dropdown.classList.remove('show');
+            toggleMenu(!isMenuOpen);
         });
 
-        document.addEventListener('click', () => {
-            if(isMenuOpen) {
-                isMenuOpen = false;
-                dropdown.classList.remove('show');
+        // Close when clicking outside
+        document.addEventListener('click', (e) => {
+            if(isMenuOpen && !dropdown.contains(e.target) && !menuBtn.contains(e.target)) {
+                toggleMenu(false);
             }
         });
 
+        function toggleMenu(open) {
+            isMenuOpen = open;
+            if (isMenuOpen) {
+                // 1. Send resize request to Main Process (Expand Height)
+                // Default bar is 50px. Menu is approx 280px. Total safely 350px.
+                window.electron.send('widget-resize', { height: 350 });
+                
+                dropdown.classList.add('show');
+                menuBtn.classList.add('active');
+            } else {
+                // 2. Send resize request to Main Process (Collapse Height)
+                dropdown.classList.remove('show');
+                menuBtn.classList.remove('active');
+                
+                // Delay shrinking slightly to allow CSS transition if desired, 
+                // but for window resizing immediate is usually smoother to prevent clipping.
+                window.electron.send('widget-resize', { height: 50 });
+            }
+        }
+
         function sendCommand(type, payload) {
             window.electron.send('widget-command', { type, payload });
-            // Close menu
-            isMenuOpen = false;
-            dropdown.classList.remove('show');
+            toggleMenu(false);
         }
         
         // Initial Clock Tick (fallback)

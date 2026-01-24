@@ -65,7 +65,7 @@ function createWidgetWindow() {
     transparent: true, // Allow rounded corners if needed via CSS
     skipTaskbar: true, // Don't show in dock/taskbar
     backgroundColor: '#00000000', // Transparent bg for CSS control
-    hasShadow: true,
+    hasShadow: false, // Shadow handled by CSS
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -134,6 +134,24 @@ ipcMain.on('toggle-widget', () => {
     } else {
         createWidgetWindow();
     }
+});
+
+// 4. Widget Resizing (Menu Toggle)
+ipcMain.on('widget-resize', (event, { height }) => {
+    if (!widgetWindow || widgetWindow.isDestroyed()) return;
+
+    const bounds = widgetWindow.getBounds();
+    const bottomY = bounds.y + bounds.height;
+    
+    // Calculate new Y so the bottom stays anchored
+    const newY = bottomY - height;
+
+    widgetWindow.setBounds({
+        x: bounds.x,
+        y: newY,
+        width: bounds.width,
+        height: height
+    });
 });
 
 
