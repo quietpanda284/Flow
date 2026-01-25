@@ -62,6 +62,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
   // View State
   const [isFullscreen, setIsFullscreen] = useState(false);
   const fullScreenRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isFocus = mode.startsWith('FOCUS');
   const isTimerActive = timerState !== TimerState.IDLE;
@@ -96,6 +97,23 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  // Dropdown Click Outside Listener
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+            setIsDropdownOpen(false);
+            setEditingCategoryId(null); // Reset edit state when closing
+        }
+    };
+
+    if (isDropdownOpen) {
+        document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDropdownOpen]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -346,7 +364,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
             {/* TOGGLE BETWEEN SELECT MODE AND ADD MODE */}
             {!isAddingCategory ? (
                 <div className="flex gap-2 max-w-sm mx-auto">
-                    <div className="relative flex-1">
+                    <div className="relative flex-1" ref={dropdownRef}>
                         <button 
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                             disabled={isTimerActive}
