@@ -59,7 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, isDevM
         </svg>
       </div>
 
-      <nav className="flex-1 w-full flex flex-col gap-4 items-center overflow-y-auto min-h-0 no-scrollbar">
+      <nav className="flex-1 w-full flex flex-col gap-4 items-center overflow-y-auto min-h-0 no-scrollbar pt-2 pb-2">
         {items.map((item) => {
           const isActive = activePage === item.name;
           const Icon = item.icon;
