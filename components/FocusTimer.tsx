@@ -306,15 +306,19 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
   };
 
   const handleEditCategory = async () => {
-      if (editingCategoryId && editingName.trim()) {
+      const nameToSave = editingName.trim();
+      if (editingCategoryId && nameToSave) {
           try {
-              await updateCategory(editingCategoryId, editingName.trim());
+              await updateCategory(editingCategoryId, nameToSave);
+              
+              // Optimistic UI Update for Active Category
+              if (activeCategory?.id === editingCategoryId) {
+                  setActiveCategory(prev => prev ? { ...prev, name: nameToSave } : null);
+              }
+
               setEditingCategoryId(null);
               setEditingName('');
-              if (activeCategory?.id === editingCategoryId) {
-                  // If we renamed the active category, update local state immediately so UI reflects it
-                  setActiveCategory(prev => prev ? { ...prev, name: editingName.trim() } : null);
-              }
+              
               if (onCategoryChange) onCategoryChange();
           } catch(e) { console.error(e); }
       }

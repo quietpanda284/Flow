@@ -382,15 +382,33 @@ ipcMain.on('timer-command', (event, cmd) => {
             break;
         case 'SYNC_CATEGORIES':
             // React app sends list of categories to cache for widget
-            // We only trigger update if data actually changed
             const newCats = cmd.payload.categories || [];
             const newActive = cmd.payload.activeCategory;
             
-            if (JSON.stringify(newCats) !== JSON.stringify(timerState.availableCategories) || 
-                JSON.stringify(newActive) !== JSON.stringify(timerState.activeCategory)) {
-                
+            let hasChanged = false;
+
+            // Update Categories List
+            if (JSON.stringify(newCats) !== JSON.stringify(timerState.availableCategories)) {
                 timerState.availableCategories = newCats;
-                if (newActive) timerState.activeCategory = newActive;
+                hasChanged = true;
+                
+                // AUTO-UPDATE ACTIVE CATEGORY if details changed (e.g. rename)
+                if (timerState.activeCategory) {
+                    const found = newCats.find(c => c.id === timerState.activeCategory.id);
+                    if (found && JSON.stringify(found) !== JSON.stringify(timerState.activeCategory)) {
+                        timerState.activeCategory = found;
+                        // hasChanged is already true
+                    }
+                }
+            }
+            
+            // Update Active Category from Payload (if explicit)
+            if (newActive && JSON.stringify(newActive) !== JSON.stringify(timerState.activeCategory)) {
+                timerState.activeCategory = newActive;
+                hasChanged = true;
+            }
+
+            if (hasChanged) {
                 broadcastTimerUpdate(true); // Force update to sync widget
             }
             break;
