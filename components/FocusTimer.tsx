@@ -305,15 +305,35 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
       setDeleteConfirmationId(null);
   };
 
-  const handleEditCategory = async () => {
+const handleEditCategory = async () => {
       const nameToSave = editingName.trim();
       if (editingCategoryId && nameToSave) {
           try {
               await updateCategory(editingCategoryId, nameToSave);
               
-              // Optimistic UI Update for Active Category
+              // 1. Optimistic UI Update (Instant feedback)
               if (activeCategory?.id === editingCategoryId) {
                   setActiveCategory(prev => prev ? { ...prev, name: nameToSave } : null);
+              }
+
+              // 2. CRITICAL FIX: Force Sync Electron IMMEDIATELY
+              // We construct the new list locally so we don't have to wait for the Parent -> Prop cycle
+              // This prevents the "Stomp" bug where Electron sends back the old name.
+              const updatedCategories = categories.map(c => 
+                  c.id === editingCategoryId ? { ...c, name: nameToSave } : c
+              );
+              
+              if ((window as any).electron) {
+                  (window as any).electron.send('timer-command', {
+                      type: 'SYNC_CATEGORIES',
+                      payload: {
+                          categories: updatedCategories,
+                          // Explicitly tell Electron: "The active category has changed, update your cache NOW"
+                          activeCategory: activeCategory?.id === editingCategoryId 
+                              ? { ...activeCategory, name: nameToSave } 
+                              : undefined
+                      }
+                  });
               }
 
               setEditingCategoryId(null);
