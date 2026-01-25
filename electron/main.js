@@ -1,4 +1,5 @@
 
+
 import { app, BrowserWindow, globalShortcut, screen, ipcMain } from 'electron';
 import path from 'path';
 import isDev from 'electron-is-dev';
@@ -177,6 +178,9 @@ function getTodayStr() {
  * @param {boolean} force - If true, sends all data regardless of change detection
  */
 function broadcastTimerUpdate(force = false) {
+    const today = getTodayStr();
+    const todayFocusTime = timerState.dailyStats[today] || 0;
+
     // 1. Prepare Lightweight Payload (Always Sent)
     const payload = {
         secondsRemaining: timerState.secondsRemaining,
@@ -184,7 +188,8 @@ function broadcastTimerUpdate(force = false) {
         status: timerState.status,
         mode: timerState.mode,
         totalFocusTime: timerState.totalFocusTime,
-        lastFocusEndTime: timerState.lastFocusEndTime
+        lastFocusEndTime: timerState.lastFocusEndTime,
+        todayFocusTime: todayFocusTime
     };
 
     // 2. Prepare Heavyweight Data (Conditional Send)

@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -343,6 +344,10 @@
                     <span class="metric-label">Status</span>
                 </div>
                 <div class="metric-item">
+                    <span class="metric-value" id="dailyFocusText">0m</span>
+                    <span class="metric-label">Daily Focus</span>
+                </div>
+                <div class="metric-item">
                     <span class="metric-value" id="currentCategory">None</span>
                     <span class="metric-label">Category</span>
                 </div>
@@ -388,7 +393,8 @@
                 activeCategory, 
                 // AvailableCategories might be undefined if main process hasn't sent an update
                 availableCategories, 
-                lastFocusEndTime
+                lastFocusEndTime,
+                todayFocusTime
             } = data;
 
             lastFocusEndTimestamp = lastFocusEndTime;
@@ -412,6 +418,15 @@
                 mainDisplay.classList.remove('is-focus');
                 ringContainer.style.display = 'none';
                 updateIdleDisplay();
+            }
+
+            // Update Daily Focus
+            const dailyFocusEl = document.getElementById('dailyFocusText');
+            if (dailyFocusEl && todayFocusTime !== undefined) {
+                 const h = Math.floor(todayFocusTime / 3600);
+                 const m = Math.floor((todayFocusTime % 3600) / 60);
+                 if (h > 0) dailyFocusEl.innerText = `${h}h ${m}m`;
+                 else dailyFocusEl.innerText = `${m}m`;
             }
 
             // 2. UPDATE LABELS
