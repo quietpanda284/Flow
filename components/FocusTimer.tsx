@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Save, RefreshCw, Maximize2, Minimize2, Monitor, Loader2, Zap, X, Check, Edit2, Trash2, AlertTriangle } from 'lucide-react';
+import { Play, Pause, Square, ChevronDown, Coffee, Brain, Battery, Plus, Save, RefreshCw, Maximize2, Minimize2, Monitor, Loader2, Zap, X, Check, Edit2, Trash2, AlertTriangle, Volume2, VolumeX } from 'lucide-react';
 import { TimerState, CategoryType, Category, TimeBlock } from '../types';
 import { addCategory, deleteCategory, updateCategory, addTimeBlock } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { soundManager } from '../utils/SoundManager';
 
 type TimerVariant = 'FOCUS_25' | 'FOCUS_50' | 'BREAK_5' | 'BREAK_10';
 
@@ -44,6 +45,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
   const [mode, setMode] = useState<TimerVariant>('FOCUS_25');
   const [timeLeft, setTimeLeft] = useState(MODES.FOCUS_25.minutes * 60);
   const [lastSavedMessage, setLastSavedMessage] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(soundManager.isMuted);
   
   // Category UI
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
@@ -73,6 +75,11 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
   useEffect(() => {
     stateRef.current = { categories, user, activeCategory };
   }, [categories, user, activeCategory]);
+
+  // Preload Sounds
+  useEffect(() => {
+    soundManager.preload();
+  }, []);
 
   // --- FIX 1: INFINITE LOOP ---
   // We removed 'activeCategory' from the payload and the dependency array.
@@ -125,6 +132,11 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
             document.exitFullscreen();
         }
     }
+  };
+
+  const handleToggleMute = () => {
+      const muted = soundManager.toggleMute();
+      setIsMuted(muted);
   };
 
   const formatTime = (seconds: number) => {
@@ -213,6 +225,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
       // Listen for completion (Trigger Save)
       const completeId = (window as any).electron.receive('timer-complete', (data: any) => {
           console.log("Timer complete received:", data);
+          soundManager.play('COMPLETE');
           saveSession(data.duration, data.mode);
       });
 
@@ -251,6 +264,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = ({
   };
 
   const handleStart = () => {
+      soundManager.play('START');
       sendCommand('START', { minutes: MODES[mode].minutes, mode });
   };
   
@@ -358,6 +372,9 @@ const handleEditCategory = async () => {
       <div className={`absolute -top-32 -right-32 w-64 h-64 rounded-full blur-[100px] opacity-20 transition-all duration-700 pointer-events-none ${isFocus ? 'bg-accent-focus' : 'bg-accent-break'} ${timerState === TimerState.RUNNING ? 'scale-125 opacity-30' : ''}`} />
 
       <div className="absolute top-6 right-6 z-40 flex gap-2">
+           <button onClick={handleToggleMute} className="text-gray-500 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5" title={isMuted ? "Unmute" : "Mute Sounds"}>
+               {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+           </button>
            <button onClick={handleToggleWidget} className="text-gray-500 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5" title="Toggle Mini Widget"><Monitor size={20} /></button>
            <button onClick={toggleFullscreen} className="text-gray-500 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5" title={isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}>{isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}</button>
       </div>
