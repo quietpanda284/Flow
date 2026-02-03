@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { TimeBlock } from '../types';
 import { CATEGORY_COLORS } from '../constants';
 
@@ -10,10 +10,19 @@ interface WeeklyViewProps {
 }
 
 export const WeeklyView: React.FC<WeeklyViewProps> = ({ blocks, currentDate }) => {
-    const startHour = 6; // Start at 6 AM to fit more relevant time
-    const endHour = 22;  // End at 10 PM
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    const startHour = 0; 
+    const endHour = 24;  
     const hourHeight = 40; // Condensed height for dense data
     const totalHeight = (endHour - startHour) * hourHeight;
+
+    // Scroll to 8 AM on mount to start at a reasonable time
+    useEffect(() => {
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = 8 * hourHeight;
+        }
+    }, []);
 
     // Get Mon-Sun dates for the current week
     const getWeekDays = () => {
@@ -81,7 +90,10 @@ export const WeeklyView: React.FC<WeeklyViewProps> = ({ blocks, currentDate }) =
             </div>
 
             {/* Grid Body */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#1a1d24] relative">
+            <div 
+                ref={scrollContainerRef}
+                className="flex-1 overflow-y-auto custom-scrollbar bg-[#1a1d24] relative"
+            >
                  <div className="grid grid-cols-8" style={{ height: `${totalHeight}px` }}>
                     
                     {/* 1. Time Labels Column */}
