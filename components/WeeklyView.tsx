@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { TimeBlock } from '../types';
 import { CATEGORY_COLORS } from '../constants';
 
@@ -11,6 +11,7 @@ interface WeeklyViewProps {
 
 export const WeeklyView: React.FC<WeeklyViewProps> = ({ blocks, currentDate }) => {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const [now, setNow] = useState(new Date());
 
     const startHour = 0; 
     const endHour = 24;  
@@ -22,6 +23,12 @@ export const WeeklyView: React.FC<WeeklyViewProps> = ({ blocks, currentDate }) =
         if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTop = 8 * hourHeight;
         }
+    }, []);
+
+    // Update current time every minute
+    useEffect(() => {
+        const timer = setInterval(() => setNow(new Date()), 60000);
+        return () => clearInterval(timer);
     }, []);
 
     // Get Mon-Sun dates for the current week
@@ -63,9 +70,16 @@ export const WeeklyView: React.FC<WeeklyViewProps> = ({ blocks, currentDate }) =
 
     // Helper: Is today?
     const isToday = (d: Date) => {
-        const now = new Date();
-        return d.toDateString() === now.toDateString();
+        const today = new Date();
+        return d.toDateString() === today.toDateString();
     };
+
+    const getCurrentTimePosition = () => {
+        const minutes = now.getHours() * 60 + now.getMinutes();
+        return (minutes / 60) * hourHeight;
+    };
+
+    const showCurrentTimeLine = weekDays.some(d => isToday(d));
 
     return (
         <div className="bg-card border border-border rounded-xl flex flex-col h-full overflow-hidden">
@@ -94,7 +108,7 @@ export const WeeklyView: React.FC<WeeklyViewProps> = ({ blocks, currentDate }) =
                 ref={scrollContainerRef}
                 className="flex-1 overflow-y-auto custom-scrollbar bg-[#1a1d24] relative"
             >
-                 <div className="grid grid-cols-8" style={{ height: `${totalHeight}px` }}>
+                 <div className="grid grid-cols-8 relative" style={{ height: `${totalHeight}px` }}>
                     
                     {/* 1. Time Labels Column */}
                     <div className="border-r border-border bg-[#0f1117]">
@@ -104,6 +118,16 @@ export const WeeklyView: React.FC<WeeklyViewProps> = ({ blocks, currentDate }) =
                             </div>
                         ))}
                     </div>
+
+                    {/* Current Time Indicator */}
+                    {showCurrentTimeLine && (
+                        <div 
+                            className="absolute left-0 right-0 border-t-2 border-red-500 z-30 pointer-events-none"
+                            style={{ top: `${getCurrentTimePosition()}px` }}
+                        >
+                            <div className="absolute left-[12.5%] -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,1)]"></div>
+                        </div>
+                    )}
 
                     {/* 2. Days Columns */}
                     {weekDays.map((dayDate, i) => {
